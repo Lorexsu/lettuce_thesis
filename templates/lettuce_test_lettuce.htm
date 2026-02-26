@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Test Readiness - Cabuyew Hydroponics</title>
+  <link rel="stylesheet" href="./styles.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+
+  <button class="mobile-toggle" onclick="toggleMobileSidebar()">
+  <i class="fas fa-bars"></i>
+</button>
+
+<!-- Sidebar -->
+<div class="sidebar">
+  <button class="toggle-btn" onclick="toggleSidebar()">
+    <i class="fas fa-chevron-left"></i>
+  </button>
+  
+  <div class="logo-section">
+    <img src="./lettlogo.jpg" alt="Logo">
+    <div class="logo-title">CABUYEW</div>
+    <div class="logo-subtitle">HYDROPONICS</div>
+  </div>
+
+  <div class="nav-item" data-href="/" data-tooltip="Dashboard">
+    <i class="nav-icon fas fa-tachometer-alt"></i>
+    <span>Dashboard</span>
+  </div>
+  <div class="nav-item" data-href="/history" data-tooltip="History">
+    <i class="nav-icon fas fa-history"></i>
+    <span>History</span>
+  </div>
+  <div class="nav-item" data-href="/test" data-tooltip="Test Readiness">
+    <i class="nav-icon fas fa-vial"></i>
+    <span>Test Readiness</span>
+  </div>
+  <div class="nav-item" data-href="/about" data-tooltip="About Lettuce">
+    <i class="nav-icon fas fa-leaf"></i>
+    <span>About Lettuce</span>
+  </div>
+</div>
+
+  <!-- Main Content -->
+  <div class="main-wrapper">
+    
+    <!-- Header -->
+    <div class="page-header">
+      <h1 class="page-title">Test Readiness</h1>
+      <div class="breadcrumb">Dashboard › Test › Upload Image</div>
+    </div>
+
+    <!-- Upload Section -->
+    <div class="upload-card" id="uploadSection">
+      <div class="upload-zone" id="uploadZone" onclick="document.getElementById('fileInput').click()">
+        <div class="upload-icon">📁</div>
+        <div class="upload-title">Upload Lettuce Image</div>
+        <div class="upload-subtitle">Click to browse or drag and drop an image here</div>
+        <input type="file" id="fileInput" class="upload-input" accept="image/*" onchange="handleFileSelect(event)">
+      </div>
+    </div>
+
+    <!-- Loading Section -->
+    <div class="loading-section" id="loadingSection">
+      <div class="spinner"></div>
+      <div class="loading-text">Analyzing image...</div>
+      <div class="progress-bar-container">
+        <div class="progress-bar"></div>
+      </div>
+    </div>
+
+    <!-- Results Section -->
+    <div class="results-grid" id="resultsSection">
+      
+      <!-- Image Preview Card -->
+      <div class="result-card">
+        <div class="card-header">
+          <div class="card-title">Uploaded Image</div>
+        </div>
+        <div class="image-preview" id="imagePreview"></div>
+      </div>
+
+      <!-- Readiness Result Card -->
+      <div class="result-card">
+        <div class="card-header">
+          <div class="card-title">Harvest Readiness</div>
+        </div>
+        <div class="result-status">
+          <div class="status-icon" id="readinessIcon">✓</div>
+          <div class="status-label">Classification</div>
+          <div class="status-value" id="readinessValue">Ready to Harvest</div>
+        </div>
+        <div class="confidence-section">
+          <div class="confidence-label">Confidence Level</div>
+          <div class="confidence-bar">
+            <div class="confidence-fill" id="readinessConfidence">85%</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Health Status Card -->
+      <div class="result-card">
+        <div class="card-header">
+          <div class="card-title">Nutrient Health</div>
+        </div>
+        <div class="health-status">
+          <div class="status-icon" id="healthIcon">✓</div>
+          <div class="status-label">Health Status</div>
+          <div class="health-value" id="healthValue">Healthy</div>
+        </div>
+        <div class="confidence-section">
+          <div class="confidence-label">Confidence Level</div>
+          <div class="confidence-bar">
+            <div class="confidence-fill" id="healthConfidence">92%</div>
+          </div>
+        </div>
+        <div class="probabilities-list" id="probabilitiesList"></div>
+      </div>
+
+    </div>
+
+    <!-- Action Buttons -->
+    <div class="action-buttons" id="actionButtons" style="display: none;">
+      <button class="btn btn-primary" onclick="testAnother()">Test Another Image</button>
+      <button class="btn btn-secondary" onclick="saveResults()">Save Results</button>
+    </div>
+
+  </div>
+
+    <script>
+    let currentResults = null;
+
+    // Navigation
+    document.querySelectorAll('.nav-item').forEach(item => {
+      item.addEventListener('click', function() {
+        const href = this.getAttribute('data-href');
+        if (href) window.location.href = href;
+      });
+    });
+
+    // Drag and drop
+    const uploadZone = document.getElementById('uploadZone');
+    
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+      uploadZone.addEventListener(eventName, preventDefaults, false);
+    });
+
+    function preventDefaults(e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+
+    ['dragenter', 'dragover'].forEach(eventName => {
+      uploadZone.addEventListener(eventName, () => {
+        uploadZone.classList.add('dragover');
+      });
+    });
+
+    ['dragleave', 'drop'].forEach(eventName => {
+      uploadZone.addEventListener(eventName, () => {
+        uploadZone.classList.remove('dragover');
+      });
+    });
+
+    uploadZone.addEventListener('drop', handleDrop);
+
+    function handleDrop(e) {
+      const dt = e.dataTransfer;
+      const files = dt.files;
+      if (files.length > 0) {
+        handleFile(files[0]);
+      }
+    }
+
+    function handleFileSelect(event) {
+      const file = event.target.files[0];
+      if (file) {
+        handleFile(file);
+      }
+    }
+
+    function handleFile(file) {
+      if (!file.type.startsWith('image/')) {
+        alert('Please upload an image file');
+        return;
+      }
+
+      // Show loading
+      document.getElementById('uploadSection').style.display = 'none';
+      document.getElementById('loadingSection').classList.add('active');
+
+      // Read file as base64
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const base64Image = e.target.result;
+
+        // Call classify endpoint (YOLO with bounding boxes)
+        fetch('/classify', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ image: base64Image })
+        })
+        .then(response => response.json())
+        .then(data => {
+          console.log('Classification result:', data);
+          
+          if (data.detected) {
+            // Process each detection with nutrient analysis
+            processDetections(base64Image, data);
+          } else {
+            alert('No lettuce detected in the image');
+            resetView();
+          }
+        })
+        .catch(error => {
+          console.error('Error:', error);
+          alert('Failed to analyze image. Please try again.');
+          resetView();
+        });
+      };
+      reader.readAsDataURL(file);
+    }
+
+    async function processDetections(base64Image, yoloData) {
+      // For simplicity, run nutrient classification on the whole image
+      // In production, you'd crop each detected lettuce and classify individually
+      
+      try {
+        const nutrientResponse = await fetch('/classify-nutrient', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ image: base64Image })
+        });
+        
+        const nutrientData = await nutrientResponse.json();
+        console.log('Nutrient result:', nutrientData);
+
+        // Add nutrient data to detections
+        const enrichedDetections = yoloData.all_detections.map(det => ({
+          ...det,
+          health_status: nutrientData.nutrient_status,
+          health_confidence: nutrientData.confidence
+        }));
+
+        displayResults({
+          annotated_image: yoloData.annotated_image,
+          total_count: yoloData.count,
+          ready_count: yoloData.ready_count,
+          not_ready_count: yoloData.not_ready_count,
+          detections: enrichedDetections
+        });
+
+      } catch (error) {
+        console.error('Nutrient analysis error:', error);
+        // Display without nutrient data if it fails
+        displayResults({
+          annotated_image: yoloData.annotated_image,
+          total_count: yoloData.count,
+          ready_count: yoloData.ready_count,
+          not_ready_count: yoloData.not_ready_count,
+          detections: yoloData.all_detections
+        });
+      }
+    }
+
+    function displayResults(data) {
+      // Hide loading
+      document.getElementById('loadingSection').classList.remove('active');
+      
+      // Show results
+      document.getElementById('resultsSection').classList.add('active');
+      document.getElementById('actionButtons').style.display = 'flex';
+
+      // Display annotated image with bounding boxes
+      document.getElementById('imagePreview').innerHTML = `<img src="${data.annotated_image}" alt="Detected" style="max-width: 100%; max-height: 100%; object-fit: contain;">`;
+
+      // Update readiness card with summary
+      document.getElementById('readinessValue').textContent = `${data.ready_count} Ready / ${data.not_ready_count} Not Ready`;
+      document.getElementById('readinessValue').className = 'status-value ready';
+      
+      const avgConfidence = data.detections.reduce((sum, det) => sum + det.confidence, 0) / data.detections.length;
+      const readinessConf = Math.round(avgConfidence * 100);
+      const readinessBar = document.getElementById('readinessConfidence');
+      readinessBar.textContent = readinessConf + '%';
+      readinessBar.style.width = readinessConf + '%';
+
+      // Display health status from first detection
+      if (data.detections.length > 0 && data.detections[0].health_status) {
+        const health = data.detections[0].health_status;
+        const isHealthy = health.toLowerCase() === 'healthy';
+        
+        document.getElementById('healthValue').textContent = health;
+        document.getElementById('healthValue').className = 'status-value ' + (isHealthy ? 'ready' : 'not-ready');
+        
+        const healthConf = Math.round((data.detections[0].health_confidence || 0) * 100);
+        const healthBar = document.getElementById('healthConfidence');
+        healthBar.textContent = healthConf + '%';
+        healthBar.style.width = healthConf + '%';
+      }
+
+      // Display individual detections in probabilities list
+      const probList = document.getElementById('probabilitiesList');
+      probList.innerHTML = '<div style="font-weight: 600; margin-bottom: 0.75rem; color: #495057;">Individual Detections:</div>';
+      
+      data.detections.forEach((det, index) => {
+        const isReady = det.label.toLowerCase().includes('ready') && !det.label.toLowerCase().includes('not');
+        const item = document.createElement('div');
+        item.className = 'prob-item';
+        item.innerHTML = `
+          <span class="prob-label">Lettuce #${index + 1}: ${det.label}</span>
+          <span class="prob-value">${Math.round(det.confidence * 100)}%</span>
+        `;
+        probList.appendChild(item);
+        
+      });
+    }
+
+    function resetView() {
+      document.getElementById('uploadSection').style.display = 'block';
+      document.getElementById('loadingSection').classList.remove('active');
+      document.getElementById('resultsSection').classList.remove('active');
+      document.getElementById('actionButtons').style.display = 'none';
+      document.getElementById('fileInput').value = '';
+    }
+
+    function testAnother() {
+      resetView();
+    }
+
+    function saveResults() {
+      if (currentResults) {
+        console.log('Saving results:', currentResults);
+        alert('Results saved to history');
+        // TODO: Send to backend to save in database
+      }
+    }
+
+    // Sidebar Toggle Function
+    function toggleSidebar() {
+      const sidebar = document.querySelector('.sidebar');
+      sidebar.classList.toggle('collapsed');
+      
+      // Save preference to localStorage
+      const isCollapsed = sidebar.classList.contains('collapsed');
+      localStorage.setItem('sidebarCollapsed', isCollapsed);
+    }
+
+    function toggleMobileSidebar() {
+      const sidebar = document.querySelector('.sidebar');
+      sidebar.classList.toggle('mobile-open');
+    }
+
+    // Check saved preference on page load
+    window.addEventListener('load', () => {
+      const isCollapsed = localStorage.getItem('sidebarCollapsed') === 'true';
+      const sidebar = document.querySelector('.sidebar');
+      
+      if (isCollapsed) {
+        sidebar.classList.add('collapsed');
+      }
+      
+      // Mobile detection
+      const mobileToggle = document.querySelector('.mobile-toggle');
+      if (window.innerWidth <= 768) {
+        mobileToggle.style.display = 'flex';
+      } else {
+        mobileToggle.style.display = 'none';
+      }
+      
+      // Update on resize
+      window.addEventListener('resize', () => {
+        if (window.innerWidth <= 768) {
+          mobileToggle.style.display = 'flex';
+          // Close sidebar on mobile by default
+          sidebar.classList.remove('collapsed');
+        } else {
+          mobileToggle.style.display = 'none';
+          sidebar.classList.remove('mobile-open');
+        }
+      });
+    });
+
+
+  </script>
+  </body>
+</html>

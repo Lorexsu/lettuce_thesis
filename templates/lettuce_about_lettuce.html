@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="stylesheet" href="static/styles.css">
+  <title>About Lettuce - Cabuyew Hydroponics</title>
+</head>
+<body>
+
+<button class="mobile-toggle" onclick="toggleMobileSidebar()">
+  <i class="fas fa-bars"></i>
+</button>
+
+<!-- Sidebar -->
+<div class="sidebar">
+  <button class="toggle-btn" onclick="toggleSidebar()">
+    <i class="fas fa-chevron-left"></i>
+  </button>
+  
+  <div class="logo-section">
+    <img src="./lettlogo.jpg" alt="Logo">
+    <div class="logo-title">CABUYEW</div>
+    <div class="logo-subtitle">HYDROPONICS</div>
+  </div>
+
+  <div class="nav-item" data-href="/" data-tooltip="Dashboard">
+    <i class="nav-icon fas fa-tachometer-alt"></i>
+    <span>Dashboard</span>
+  </div>
+  <div class="nav-item" data-href="/history" data-tooltip="History">
+    <i class="nav-icon fas fa-history"></i>
+    <span>History</span>
+  </div>
+  <div class="nav-item" data-href="/test" data-tooltip="Test Readiness">
+    <i class="nav-icon fas fa-vial"></i>
+    <span>Test Readiness</span>
+  </div>
+  <div class="nav-item" data-href="/about" data-tooltip="About Lettuce">
+    <i class="nav-icon fas fa-leaf"></i>
+    <span>About Lettuce</span>
+  </div>
+</div>
+
+  <div class="main-wrapper">
+    
+    <div class="page-header">
+      <h1 class="page-title">Lettuce Knowledge Base</h1>
+      <div class="breadcrumb">Dashboard › About › Lettuce Information</div>
+    </div>
+
+    <!-- Introduction -->
+    <div class="intro-card">
+      <h2>Why Lettuce in Hydroponics?</h2>
+      <p>Lettuce is one of the most popular and successful crops for hydroponic cultivation. Its fast growth cycle, minimal space requirements, and high market demand make it an ideal choice for both commercial and research purposes.</p>
+      
+      <p>In controlled hydroponic environments, lettuce can be grown year-round with consistent quality, reduced water usage, and minimal pesticide requirements. This makes it perfect for urban farming and sustainable food production systems.</p>
+
+      <div class="benefits-grid">
+        <div class="benefit-card">
+          <div class="benefit-icon">⚡</div>
+          <h3>Fast Growth</h3>
+          <p>Harvest-ready in just 30-45 days, allowing multiple crop cycles per year.</p>
+        </div>
+        <div class="benefit-card">
+          <div class="benefit-icon">💧</div>
+          <h3>Water Efficient</h3>
+          <p>Uses 90% less water compared to traditional soil farming methods.</p>
+        </div>
+        <div class="benefit-card">
+          <div class="benefit-icon">🌱</div>
+          <h3>Space Saving</h3>
+          <p>Vertical stacking allows 10x more production per square meter.</p>
+        </div>
+        <div class="benefit-card">
+          <div class="benefit-icon">🔬</div>
+          <h3>Controlled Quality</h3>
+          <p>Precise control over nutrients, pH, and environment ensures consistent results.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Varieties Section -->
+    <h2 class="section-title">Lettuce Varieties in This Study</h2>
+
+    <div class="varieties-grid">
+      
+      <!-- Estrosa Variety -->
+      <div class="variety-card">
+        <div class="variety-header">
+          <div class="variety-name">Estrosa</div>
+          <div class="variety-badge">Leaf Type</div>
+        </div>
+        <div class="variety-body">
+          
+          <div class="specs-grid">
+            <div class="spec-item">
+              <div class="spec-icon">📏</div>
+              <div>
+                <div class="spec-label">Harvest Size</div>
+                <div class="spec-value">15-20 cm</div>
+              </div>
+            </div>
+            <div class="spec-item">
+              <div class="spec-icon">⏱️</div>
+              <div>
+                <div class="spec-label">Growth Time</div>
+                <div class="spec-value">35-40 days</div>
+              </div>
+            </div>
+            <div class="spec-item">
+              <div class="spec-icon">🌡️</div>
+              <div>
+                <div class="spec-label">Optimal Temp</div>
+                <div class="spec-value">18-24°C</div>
+              </div>
+            </div>
+            <div class="spec-item">
+              <div class="spec-icon">💧</div>
+              <div>
+                <div class="spec-label">Water Needs</div>
+                <div class="spec-value">Moderate</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="variety-description">
+            Estrosa is a popular leafy lettuce variety with elongated, frilly leaves and a crisp texture. Its vibrant green color and loose-leaf structure make it ideal for continuous harvest systems. The leaves grow outward from a central core, allowing for easy picking.
+          </div>
+
+          <div class="characteristics-list">
+            <span class="characteristic-tag">Crispy Texture</span>
+            <span class="characteristic-tag">Heat Tolerant</span>
+            <span class="characteristic-tag">High Yield</span>
+            <span class="characteristic-tag">Disease Resistant</span>
+          </div>
+
+          <button class="btn-expand" onclick="toggleDetails(this)">Learn More</button>
+
+          <div class="detailed-info">
+            <div class="info-section">
+              <h4>Growth Characteristics</h4>
+              <ul>
+                <li>Forms an open, upright rosette of leaves</li>
+                <li>Excellent regrowth after harvesting outer leaves</li>
+                <li>Maintains quality over extended harvest period</li>
+                <li>Adapts well to various hydroponic systems</li>
+              </ul>
+            </div>
+            <div class="info-section">
+              <h4>Nutritional Benefits</h4>
+              <ul>
+                <li>Rich in vitamins A, C, and K</li>
+                <li>Good source of folate and iron</li>
+                <li>Contains antioxidants and fiber</li>
+                <li>Low calorie, nutrient-dense option</li>
+              </ul>
+            </div>
+            <div class="info-section">
+              <h4>Best Practices</h4>
+              <ul>
+                <li>Maintain EC levels between 1.2-1.8 mS/cm</li>
+                <li>Keep pH between 5.5-6.5 for optimal growth</li>
+                <li>Provide 12-16 hours of light daily</li>
+                <li>Ensure good air circulation to prevent disease</li>
+              </ul>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Olmetie Variety -->
+      <div class="variety-card">
+        <div class="variety-header">
+          <div class="variety-name">Olmetie</div>
+          <div class="variety-badge">Butterhead</div>
+        </div>
+        <div class="variety-body">
+          
+          <div class="specs-grid">
+            <div class="spec-item">
+              <div class="spec-icon">📏</div>
+              <div>
+                <div class="spec-label">Harvest Size</div>
+                <div class="spec-value">12-15 cm</div>
+              </div>
+            </div>
+            <div class="spec-item">
+              <div class="spec-icon">⏱️</div>
+              <div>
+                <div class="spec-label">Growth Time</div>
+                <div class="spec-value">30-35 days</div>
+              </div>
+            </div>
+            <div class="spec-item">
+              <div class="spec-icon">🌡️</div>
+              <div>
+                <div class="spec-label">Optimal Temp</div>
+                <div class="spec-value">16-22°C</div>
+              </div>
+            </div>
+            <div class="spec-item">
+              <div class="spec-icon">💧</div>
+              <div>
+                <div class="spec-label">Water Needs</div>
+                <div class="spec-value">High</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="variety-description">
+            Olmetie is a compact butterhead-type lettuce with smooth, tender leaves and a soft texture. It forms a tight, round head with excellent color stability and consistent weight. Its dense shape makes it ideal for efficient hydroponic layouts and uniform harvest schedules.
+          </div>
+
+          <div class="characteristics-list">
+            <span class="characteristic-tag">Tender Leaves</span>
+            <span class="characteristic-tag">Compact Growth</span>
+            <span class="characteristic-tag">Uniform Size</span>
+            <span class="characteristic-tag">Sweet Flavor</span>
+          </div>
+
+          <button class="btn-expand" onclick="toggleDetails(this)">Learn More</button>
+
+          <div class="detailed-info">
+            <div class="info-section">
+              <h4>Growth Characteristics</h4>
+              <ul>
+                <li>Forms tight, compact heads with excellent uniformity</li>
+                <li>Smooth, buttery leaves with minimal bitterness</li>
+                <li>Maintains stable color throughout growth cycle</li>
+                <li>Excellent shelf life after harvest</li>
+              </ul>
+            </div>
+            <div class="info-section">
+              <h4>Nutritional Benefits</h4>
+              <ul>
+                <li>High in vitamins A and C</li>
+                <li>Good source of dietary fiber</li>
+                <li>Contains beneficial minerals like iron and calcium</li>
+                <li>Low in sodium, high in potassium</li>
+              </ul>
+            </div>
+            <div class="info-section">
+              <h4>Best Practices</h4>
+              <ul>
+                <li>Maintain EC levels between 1.0-1.6 mS/cm</li>
+                <li>Keep pH between 5.8-6.2 for best results</li>
+                <li>Provide consistent 14-16 hours of light</li>
+                <li>Monitor for tip burn in high-growth conditions</li>
+              </ul>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+
+  <script>
+    // Navigation
+    document.querySelectorAll('.nav-item').forEach(item => {
+      item.addEventListener('click', function() {
+        const href = this.getAttribute('data-href');
+        if (href) window.location.href = href;
+      });
+    });
+
+    // Toggle detailed information
+    function toggleDetails(button) {
+      const card = button.closest('.variety-card');
+      const detailedInfo = card.querySelector('.detailed-info');
+      
+      if (detailedInfo.classList.contains('show')) {
+        detailedInfo.classList.remove('show');
+        button.textContent = 'Learn More';
+      } else {
+        detailedInfo.classList.add('show');
+        button.textContent = 'Show Less';
+      }
+    }
+
+    // Sidebar Toggle Function
+    function toggleSidebar() {
+        const sidebar = document.querySelector('.sidebar');
+        sidebar.classList.toggle('collapsed');
+        
+        // Save preference to localStorage
+        const isCollapsed = sidebar.classList.contains('collapsed');
+        localStorage.setItem('sidebarCollapsed', isCollapsed);
+        }
+
+        function toggleMobileSidebar() {
+        const sidebar = document.querySelector('.sidebar');
+        sidebar.classList.toggle('mobile-open');
+        }
+
+        // Check saved preference on page load
+        window.addEventListener('load', () => {
+        const isCollapsed = localStorage.getItem('sidebarCollapsed') === 'true';
+        const sidebar = document.querySelector('.sidebar');
+        
+        if (isCollapsed) {
+            sidebar.classList.add('collapsed');
+        }
+        
+        // Mobile detection
+        const mobileToggle = document.querySelector('.mobile-toggle');
+        if (window.innerWidth <= 768) {
+            mobileToggle.style.display = 'flex';
+        } else {
+            mobileToggle.style.display = 'none';
+        }
+        
+        // Update on resize
+        window.addEventListener('resize', () => {
+            if (window.innerWidth <= 768) {
+            mobileToggle.style.display = 'flex';
+            // Close sidebar on mobile by default
+            sidebar.classList.remove('collapsed');
+            } else {
+            mobileToggle.style.display = 'none';
+            sidebar.classList.remove('mobile-open');
+            }
+        });
+        });
+
+  </script>
+
+</body>
+</html>

@@ -1,0 +1,2348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+  <link rel="stylesheet" href="static/styles.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <title>Dashboard - Cabuyew Hydroponics</title>
+</head>
+<body>
+
+<button class="mobile-toggle" onclick="toggleMobileSidebar()">
+<i class="fas fa-bars"></i>
+</button>
+
+<!-- Sidebar -->
+<div class="sidebar">
+  <button class="toggle-btn" onclick="toggleSidebar()">
+    <i class="fas fa-chevron-left"></i>
+  </button>
+  
+  <div class="logo-section">
+    <img src="./lettlogo.jpg" alt="Logo">
+    <div class="logo-title">CABUYEW</div>
+    <div class="logo-subtitle">HYDROPONICS</div>
+  </div>
+
+  <div class="nav-item" data-href="/" data-tooltip="Dashboard">
+    <i class="nav-icon fas fa-tachometer-alt"></i>
+    <span>Dashboard</span>
+  </div>
+  <div class="nav-item" data-href="/history" data-tooltip="History">
+    <i class="nav-icon fas fa-history"></i>
+    <span>History</span>
+  </div>
+  <div class="nav-item" data-href="/test" data-tooltip="Test Readiness">
+    <i class="nav-icon fas fa-vial"></i>
+    <span>Test Readiness</span>
+  </div>
+  <div class="nav-item" data-href="/about" data-tooltip="About Lettuce">
+    <i class="nav-icon fas fa-leaf"></i>
+    <span>About Lettuce</span>
+  </div>
+</div>
+
+  <!-- Main Content -->
+  <div class="main-wrapper">
+    
+    <!-- Header -->
+    <div class="page-header">
+      <h1 class="page-title">Dashboard</h1>
+      <div class="breadcrumb">Dashboard › Monitoring</div>
+    </div>
+
+    <!-- Quick Stats -->
+    <div class="stats-grid">
+      <div class="stat-card">
+        
+        <div class="stat-label">Current Stage</div>
+        <div class="stat-value" id="stat-stage">--</div>
+        <div class="stat-change">● Active</div>
+      </div>
+
+      <div class="stat-card">
+        
+        <div class="stat-label">Days Growing</div>
+        <div class="stat-value" id="stat-days">--</div>
+        <div class="stat-change">+1 day</div>
+      </div>
+
+      <div class="stat-card">
+        
+        <div class="stat-label">Temperature</div>
+        <div class="stat-value" id="stat-temp">--°C</div>
+        <div class="stat-change">Optimal</div>
+      </div>
+
+      <div class="stat-card">
+        
+        <div class="stat-label">Humidity</div>
+        <div class="stat-value" id="stat-humid">--%</div>
+        <div class="stat-change">Optimal</div>
+      </div>
+    </div>
+
+    <!-- Growth Timeline -->
+    <div class="card">
+      <div class="card-header">
+        <h2 class="card-title">Growth Timeline</h2>
+      </div>
+      <div class="card-body">
+        <div class="progress-item">
+          <div class="progress-header">
+            <span class="progress-label">Seedling Stage</span>
+            <span class="progress-days">Days 1-12</span>
+          </div>
+          <div class="progress-bar-track">
+            <div class="progress-bar-fill progress-green" style="width: 27%"></div>
+          </div>
+        </div>
+
+        <div class="progress-item">
+          <div class="progress-header">
+            <span class="progress-label">Vegetative Stage</span>
+            <span class="progress-days">Days 12-30</span>
+          </div>
+          <div class="progress-bar-track">
+            <div class="progress-bar-fill progress-blue" style="width: 67%"></div>
+          </div>
+        </div>
+
+        <div class="progress-item">
+          <div class="progress-header">
+            <span class="progress-label">Harvest Ready</span>
+            <span class="progress-days">Days 30-45</span>
+          </div>
+          <div class="progress-bar-track">
+            <div class="progress-bar-fill progress-orange" style="width: 100%"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Planting Tracker -->
+    <div class="card">
+      <div class="card-header">
+        <h2 class="card-title">Planting Tracker</h2>
+      </div>
+      <div class="card-body">
+        <div class="tracker-inputs">
+          <div class="input-group">
+            <label class="input-label">Planting Date</label>
+            <input type="date" id="planting-date" class="input-field">
+          </div>
+          <div class="input-group">
+            <label class="input-label">Time</label>
+            <input type="time" id="planting-time" class="input-field">
+          </div>
+          <div style="display: flex; align-items: end; gap: 0.5rem;">
+            <button class="btn btn-primary" onclick="savePlantingDate()">Start Tracking</button>
+            <button class="btn btn-secondary" onclick="resetPlantingDate()">Reset</button>
+          </div>
+        </div>
+
+        <div class="tracker-display">
+          <div class="tracker-status" id="planting-status">Not tracking - Set planting date to begin</div>
+          <div class="tracker-days" id="days-since-planting">--</div>
+          <div class="tracker-label">Days Since Planting</div>
+          <div class="tracker-stage" id="current-stage">--</div>
+          <div class="tracker-time" id="current-datetime">--</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Growth Charts Section -->
+<div class="charts-grid" style="grid-template-columns: 1fr 1fr; margin-top: 1.5rem;">
+  <!-- Growth Progression Line Chart -->
+  <div class="card">
+    <div class="card-header">
+      <h2 class="card-title">Growth Progression</h2>
+      <div class="card-tabs">
+        <button class="tab-btn active" onclick="setChartTimeframe('growth', 'all')">All</button>
+        <button class="tab-btn" onclick="setChartTimeframe('growth', 'week')">Week</button>
+        <button class="tab-btn" onclick="setChartTimeframe('growth', 'month')">Month</button>
+      </div>
+    </div>
+    <div class="card-body">
+      <canvas id="growth-chart" style="max-height: 280px;"></canvas>
+      <div class="chart-stats">
+        <div class="chart-stat">
+          <div class="chart-stat-label">Ready Today</div>
+          <div class="chart-stat-value" id="growth-ready-today">0</div>
+        </div>
+        <div class="chart-stat">
+          <div class="chart-stat-label">Total Plants</div>
+          <div class="chart-stat-value" id="growth-total">0</div>
+        </div>
+        <div class="chart-stat">
+          <div class="chart-stat-label">Readiness %</div>
+          <div class="chart-stat-value" id="growth-percentage">0%</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Daily Detection Summary Chart -->
+  <div class="card">
+    <div class="card-header">
+      <h2 class="card-title">Daily Readiness Summary</h2>
+      <div class="card-tabs">
+        <button class="tab-btn active" onclick="setChartTimeframe('daily', 'week')">Week</button>
+        <button class="tab-btn" onclick="setChartTimeframe('daily', 'month')">Month</button>
+        <button class="tab-btn" onclick="setChartTimeframe('daily', 'all')">All</button>
+      </div>
+    </div>
+    <div class="card-body">
+      <canvas id="daily-chart" style="max-height: 280px;"></canvas>
+      <div class="chart-stats">
+        <div class="chart-stat">
+          <div class="chart-stat-label">Avg. Ready/Day</div>
+          <div class="chart-stat-value" id="daily-avg-ready">0</div>
+        </div>
+        <div class="chart-stat">
+          <div class="chart-stat-label">Trend</div>
+          <div class="chart-stat-value" id="daily-trend">→</div>
+        </div>
+        <div class="chart-stat">
+          <div class="chart-stat-label">Best Day</div>
+          <div class="chart-stat-value" id="daily-best">--</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+    <!-- Charts -->
+    <div class="charts-grid">
+      <div class="card">
+        <div class="card-header">
+          <h2 class="card-title">24-Hour Temperature</h2>
+          <div class="card-tabs">
+            <button class="tab-btn active">Daily</button>
+            <button class="tab-btn">Weekly</button>
+            <button class="tab-btn">Monthly</button>
+          </div>
+        </div>
+        <div class="card-body">
+          <canvas id="temp-chart" style="max-height: 220px;"></canvas>
+          <div class="chart-stats">
+            <div class="chart-stat">
+              <div class="chart-stat-label">Average</div>
+              <div class="chart-stat-value" id="temp-avg">--</div>
+            </div>
+            <div class="chart-stat">
+              <div class="chart-stat-label">Min</div>
+              <div class="chart-stat-value" id="temp-min">--</div>
+            </div>
+            <div class="chart-stat">
+              <div class="chart-stat-label">Max</div>
+              <div class="chart-stat-value" id="temp-max">--</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <h2 class="card-title">24-Hour Humidity</h2>
+          <div class="card-tabs">
+            <button class="tab-btn active">Daily</button>
+            <button class="tab-btn">Weekly</button>
+            <button class="tab-btn">Monthly</button>
+          </div>
+        </div>
+        <div class="card-body">
+          <canvas id="humid-chart" style="max-height: 220px;"></canvas>
+          <div class="chart-stats">
+            <div class="chart-stat">
+              <div class="chart-stat-label">Average</div>
+              <div class="chart-stat-value" id="humid-avg">--</div>
+            </div>
+            <div class="chart-stat">
+              <div class="chart-stat-label">Min</div>
+              <div class="chart-stat-value" id="humid-min">--</div>
+            </div>
+            <div class="chart-stat">
+              <div class="chart-stat-label">Max</div>
+              <div class="chart-stat-value" id="humid-max">--</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Sensor Metrics -->
+    <div class="sensor-grid">
+      <div class="sensor-card">
+        
+        <div class="sensor-title">Temperature</div>
+        <div class="sensor-value" id="temp-value">--</div>
+        <div class="sensor-unit">°C</div>
+        <div class="sensor-status disconnected" id="temp-status">
+          <span class="status-dot dot-warning"></span>
+          Connecting...
+        </div>
+      </div>
+
+      <div class="sensor-card">
+        
+        <div class="sensor-title">Humidity</div>
+        <div class="sensor-value" id="humid-value">--</div>
+        <div class="sensor-unit">%</div>
+        <div class="sensor-status disconnected" id="humid-status">
+          <span class="status-dot dot-warning"></span>
+          Connecting...
+        </div>
+      </div>
+
+      <div class="sensor-card">
+        
+        <div class="sensor-title">Light Intensity</div>
+        <div class="sensor-value">--</div>
+        <div class="sensor-unit">lux</div>
+        <div class="sensor-status disconnected">
+          <span class="status-dot dot-warning"></span>
+          Not Available
+        </div>
+      </div>
+    </div>
+    
+    <!-- Analytics Dashboard -->
+<div class="card" style="margin-top: 2rem;">
+  <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+    <h2 class="card-title">📊 Growth Analytics</h2>
+    <div style="display: flex; gap: 0.5rem;">
+      <button class="btn btn-secondary" onclick="refreshAnalytics()">
+        <i class="fas fa-sync-alt"></i> Refresh
+      </button>
+      <button class="btn btn-secondary" onclick="exportAnalytics()">
+        <i class="fas fa-download"></i> Export
+      </button>
+      <button class="btn btn-danger" onclick="resetAnalytics()" style="background: #f44336;">
+        <i class="fas fa-trash"></i> Reset
+      </button>
+    </div>
+  </div>
+  
+  <div class="card-body">
+    <!-- Analytics Summary Cards -->
+    <div class="analytics-summary">
+      <div class="analytics-card">
+        <div class="analytics-icon success">
+          <i class="fas fa-check-circle"></i>
+        </div>
+        <div class="analytics-content">
+          <div class="analytics-value" id="harvest-ready">0</div>
+          <div class="analytics-label">Ready to Harvest</div>
+          <div class="analytics-change" id="harvest-change">+0 today</div>
+        </div>
+      </div>
+      
+      <div class="analytics-card">
+        <div class="analytics-icon warning">
+          <i class="fas fa-seedling"></i>
+        </div>
+        <div class="analytics-content">
+          <div class="analytics-value" id="growing">0</div>
+          <div class="analytics-label">Still Growing</div>
+          <div class="analytics-change" id="growth-change">0% of total</div>
+        </div>
+      </div>
+      
+      <div class="analytics-card">
+        <div class="analytics-icon info">
+          <i class="fas fa-chart-line"></i>
+        </div>
+        <div class="analytics-content">
+          <div class="analytics-value" id="growth-rate">0%</div>
+          <div class="analytics-label">Daily Growth Rate</div>
+          <div class="analytics-change" id="rate-change">vs yesterday</div>
+        </div>
+      </div>
+      
+      <div class="analytics-card">
+        <div class="analytics-icon primary">
+          <i class="fas fa-calendar-check"></i>
+        </div>
+        <div class="analytics-content">
+          <div class="analytics-value" id="days-remaining">--</div>
+          <div class="analytics-label">Est. Days to Full Harvest</div>
+          <div class="analytics-change" id="harvest-date">--</div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Detailed Analytics Grid -->
+    <div class="analytics-grid">
+      <!-- Readiness Trend -->
+      <div class="analytics-section">
+        <h3><i class="fas fa-chart-bar"></i> Readiness Trend</h3>
+        <div class="chart-container">
+          <canvas id="readiness-trend-chart" height="180"></canvas>
+        </div>
+        <div class="chart-footer">
+          <div class="chart-stat">
+            <span class="stat-label">Peak Readiness:</span>
+            <span class="stat-value" id="peak-readiness">--</span>
+          </div>
+          <div class="chart-stat">
+            <span class="stat-label">Avg. Daily Gain:</span>
+            <span class="stat-value" id="avg-daily-gain">--</span>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Growth Distribution -->
+      <div class="analytics-section">
+        <h3><i class="fas fa-chart-pie"></i> Growth Distribution</h3>
+        <div class="chart-container">
+          <canvas id="growth-distribution-chart" height="180"></canvas>
+        </div>
+        <div class="chart-footer">
+          <div class="chart-stat">
+            <span class="stat-label">Healthiest Stage:</span>
+            <span class="stat-value" id="healthiest-stage">--</span>
+          </div>
+          <div class="chart-stat">
+            <span class="stat-label">Needs Attention:</span>
+            <span class="stat-value" id="needs-attention">0%</span>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Performance Metrics -->
+      <div class="analytics-section full-width">
+        <h3><i class="fas fa-tachometer-alt"></i> Performance Metrics</h3>
+        <div class="metrics-grid">
+          <div class="metric-card">
+            <div class="metric-icon">
+              <i class="fas fa-bolt"></i>
+            </div>
+            <div class="metric-content">
+              <div class="metric-value" id="efficiency-score">--</div>
+              <div class="metric-label">Growth Efficiency</div>
+              <div class="metric-progress">
+                <div class="progress-bar" id="efficiency-bar" style="width: 0%"></div>
+              </div>
+            </div>
+          </div>
+          
+          <div class="metric-card">
+            <div class="metric-icon">
+              <i class="fas fa-clock"></i>
+            </div>
+            <div class="metric-content">
+              <div class="metric-value" id="avg-growth-time">--</div>
+              <div class="metric-label">Avg. Growth Time</div>
+              <div class="metric-subtext">Days to harvest</div>
+            </div>
+          </div>
+          
+          <div class="metric-card">
+            <div class="metric-icon">
+              <i class="fas fa-percentage"></i>
+            </div>
+            <div class="metric-content">
+              <div class="metric-value" id="success-rate">--</div>
+              <div class="metric-label">Success Rate</div>
+              <div class="metric-subtext">Healthy plants</div>
+            </div>
+          </div>
+          
+          <div class="metric-card">
+            <div class="metric-icon">
+              <i class="fas fa-leaf"></i>
+            </div>
+            <div class="metric-content">
+              <div class="metric-value" id="yield-estimate">--</div>
+              <div class="metric-label">Yield Estimate</div>
+              <div class="metric-subtext">Total harvest weight</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Environmental Impact -->
+      <div class="analytics-section">
+        <h3><i class="fas fa-cloud-sun"></i> Environment Impact</h3>
+        <div class="impact-list">
+          <div class="impact-item">
+            <div class="impact-icon temp">
+              <i class="fas fa-thermometer-half"></i>
+            </div>
+            <div class="impact-content">
+              <div class="impact-label">Temperature</div>
+              <div class="impact-value" id="temp-impact">Optimal</div>
+              <div class="impact-bar">
+                <div class="impact-fill optimal" style="width: 85%"></div>
+              </div>
+            </div>
+          </div>
+          
+          <div class="impact-item">
+            <div class="impact-icon humid">
+              <i class="fas fa-tint"></i>
+            </div>
+            <div class="impact-content">
+              <div class="impact-label">Humidity</div>
+              <div class="impact-value" id="humid-impact">Good</div>
+              <div class="impact-bar">
+                <div class="impact-fill good" style="width: 75%"></div>
+              </div>
+            </div>
+          </div>
+          
+          <div class="impact-item">
+            <div class="impact-icon light">
+              <i class="fas fa-sun"></i>
+            </div>
+            <div class="impact-content">
+              <div class="impact-label">Light Exposure</div>
+              <div class="impact-value" id="light-impact">Adequate</div>
+              <div class="impact-bar">
+                <div class="impact-fill adequate" style="width: 65%"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <div class="temp-alert-banner" id="tempAlertBanner">
+        <div class="temp-alert-icon">🌡️</div>
+        <div class="temp-alert-content">
+          <div class="temp-alert-title">High Temperature Alert</div>
+          <div class="temp-alert-message" id="tempAlertMessage">Temperature has reached 25°C or higher</div>
+        </div>
+        <button class="temp-alert-close" onclick="closeTempAlert()">×</button>
+      </div>
+
+      <!-- Harvest Forecast -->
+      <div class="analytics-section">
+        <h3><i class="fas fa-calendar-alt"></i> Harvest Forecast</h3>
+        <div class="forecast-list">
+          <div class="forecast-item">
+            <div class="forecast-date">This Week</div>
+            <div class="forecast-value" id="forecast-week">-- heads</div>
+            <div class="forecast-bar">
+              <div class="forecast-fill" style="width: 40%"></div>
+            </div>
+          </div>
+          
+          <div class="forecast-item">
+            <div class="forecast-date">Next Week</div>
+            <div class="forecast-value" id="forecast-next-week">-- heads</div>
+            <div class="forecast-bar">
+              <div class="forecast-fill" style="width: 70%"></div>
+            </div>
+          </div>
+          
+          <div class="forecast-item">
+            <div class="forecast-date">Full Cycle</div>
+            <div class="forecast-value" id="forecast-full">-- heads</div>
+            <div class="forecast-bar">
+              <div class="forecast-fill" style="width: 100%"></div>
+            </div>
+          </div>
+        </div>
+        <div class="forecast-note" id="forecast-note">
+          Based on current growth rate of <span id="current-growth-rate">0</span> plants/day
+        </div>
+      </div>
+    </div>
+    
+    <!-- Recommendations Section -->
+    <div class="recommendations-section">
+      <h3><i class="fas fa-lightbulb"></i> Recommendations</h3>
+      <div class="recommendations-list" id="recommendations-list">
+        <div class="recommendation">
+          <i class="fas fa-info-circle"></i>
+          <span>Waiting for more data to provide recommendations...</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+    <!-- Live Detection Section -->
+  <div class="card" style="margin-top: 2rem;">
+    <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+      <h2 class="card-title">Live Camera Detection</h2>
+      <div style="display: flex; gap: 0.75rem; align-items: center;">
+        <div class="status-indicator" style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.9rem; color: #6c757d; margin-right: 1rem;">
+          <span class="status-dot" id="statusDot" style="width: 10px; height: 10px; background: #ccc; border-radius: 50%;"></span>
+          <span id="statusText">Disconnected</span>
+        </div>
+        <button id="startBtn" class="btn btn-primary" onclick="startStream()" style="display: inline-flex; align-items: center; gap: 0.5rem;">
+          ▶ Start Live
+        </button>
+        <button id="stopBtn" class="btn btn-secondary" onclick="stopStream()" disabled style="background: #f44336; color: white; border: none;">
+          ⏸ Stop
+        </button>
+      </div>
+    </div>
+
+    <div class="card-body">
+      <!-- Video Stats Bar -->
+      <div style="display: flex; justify-content: space-around; padding: 1.25rem; background: #f8f9fa; border-radius: 8px; margin-bottom: 1.75rem;">
+        <div style="text-align: center;">
+          <div style="font-size: 0.8rem; color: #7f8c8d; margin-bottom: 0.3rem;">FPS</div>
+          <div style="font-size: 1.2rem; font-weight: 700; color: #2c3e50;" id="fpsCounter">0</div>
+        </div>
+        <div style="text-align: center;">
+          <div style="font-size: 0.8rem; color: #7f8c8d; margin-bottom: 0.3rem;">Latency</div>
+          <div style="font-size: 1.2rem; font-weight: 700; color: #2c3e50;" id="latency">--ms</div>
+        </div>
+        <div style="text-align: center;">
+          <div style="font-size: 0.8rem; color: #7f8c8d; margin-bottom: 0.3rem;">Frames</div>
+          <div style="font-size: 1.2rem; font-weight: 700; color: #2c3e50;" id="frameCountLive">0</div>
+        </div>
+      </div>
+
+      <!-- Live Grid: Video + Results -->
+      <div class="live-grid" style="display: grid; grid-template-columns: 3fr 2fr; gap: 2rem; min-height: 520px;">
+        
+        <!-- Video Feed -->
+        <div class="video-container">
+          <div style="background: #000; border-radius: 10px; overflow: hidden; height: 100%; position: relative; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+            <img id="videoFrame" style="width: 100%; height: 100%; object-fit: contain; display: none;" />
+            <div id="noStream" style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: #95a5a6;">
+              <div style="font-size: 5.5rem; margin-bottom: 1.2rem; opacity: 0.9;">📷</div>
+              <h3 style="margin-bottom: 0.8rem; color: #7f8c8d; font-size: 1.4rem;">Camera Ready</h3>
+              <p style="color: #95a5a6; font-size: 1.05rem;">Press "Start Live" to begin detection</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Detection Results Panel -->
+        <div class="results-panel" style="display: flex; flex-direction: column; gap: 1.5rem;">
+          
+          <!-- Detection Summary Cards -->
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 1rem;">
+            <div style="padding: 1.4rem; border-radius: 8px; background: #f8f9fa; border-left: 5px solid #4caf50; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+              <div style="font-size: 0.9rem; color: #6c757d; margin-bottom: 0.6rem;">✅ Ready to Harvest</div>
+              <div style="font-size: 2.2rem; font-weight: 700; color: #2c3e50;" id="readyCountLive">0</div>
+            </div>
+            
+            <div style="padding: 1.4rem; border-radius: 8px; background: #f8f9fa; border-left: 5px solid #ff9800; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+              <div style="font-size: 0.9rem; color: #6c757d; margin-bottom: 0.6rem;">🌱 Not Ready</div>
+              <div style="font-size: 2.2rem; font-weight: 700; color: #2c3e50;" id="notReadyCountLive">0</div>
+            </div>
+            
+            <div style="padding: 1.4rem; border-radius: 8px; background: #f8f9fa; border-left: 5px solid #2196f3; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+              <div style="font-size: 0.9rem; color: #6c757d; margin-bottom: 0.6rem;">📊 Total Detected</div>
+              <div style="font-size: 2.2rem; font-weight: 700; color: #2c3e50;" id="totalCountLive">0</div>
+            </div>
+          </div>
+
+          <!-- Detected Lettuces List -->
+          <div style="flex: 1; display: flex; flex-direction: column; min-height: 0;">
+            <h3 style="font-size: 1.1rem; color: #2c3e50; font-weight: 600; margin: 0 0 1rem 0;">Detected Lettuces</h3>
+            <div id="detectionListLive" style="flex: 1; overflow-y: auto; background: #fafbfc; border-radius: 10px; padding: 1rem; border: 1px solid #e9ecef;">
+              <div style="text-align: center; color: #95a5a6; padding: 3rem 1rem; font-size: 1.1rem;">No detections yet</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  </div>
+
+  
+
+  <script>
+    // Navigation
+    document.querySelectorAll('.nav-item').forEach(item => {
+      item.addEventListener('click', function() {
+        const href = this.getAttribute('data-href');
+        if (href) window.location.href = href;
+      });
+    });
+
+    // Planting Date Functions
+    function savePlantingDate() {
+      const date = document.getElementById('planting-date').value;
+      const time = document.getElementById('planting-time').value;
+      if (!date || !time) {
+        alert('Please select both date and time');
+        return;
+      }
+      const plantingDateTime = new Date(`${date}T${time}`);
+      localStorage.setItem('plantingDateTime', plantingDateTime.toISOString());
+      updateDaysSincePlanting();
+      alert('Tracking started!');
+    }
+
+    function resetPlantingDate() {
+      localStorage.removeItem('plantingDateTime');
+      document.getElementById('planting-date').value = '';
+      document.getElementById('planting-time').value = '';
+      document.getElementById('days-since-planting').textContent = '--';
+      document.getElementById('current-stage').textContent = '--';
+      document.getElementById('planting-status').textContent = 'Not tracking - Set planting date to begin';
+      document.getElementById('stat-stage').textContent = '--';
+      document.getElementById('stat-days').textContent = '--';
+    }
+
+    function updateDaysSincePlanting() {
+      const savedDateTime = localStorage.getItem('plantingDateTime');
+      if (!savedDateTime) return;
+      
+      const plantingDate = new Date(savedDateTime);
+      const now = new Date();
+      const diffDays = Math.floor((now - plantingDate) / (1000 * 60 * 60 * 24));
+      
+      document.getElementById('days-since-planting').textContent = diffDays;
+      document.getElementById('stat-days').textContent = diffDays;
+      
+      let stage = '';
+      if (diffDays <= 12) stage = 'Seedling';
+      else if (diffDays <= 30) stage = 'Vegetative';
+      else stage = 'Harvest Ready';
+      
+      document.getElementById('current-stage').textContent = stage + ' Stage';
+      document.getElementById('stat-stage').textContent = stage;
+      document.getElementById('planting-status').textContent = `Tracking since ${plantingDate.toLocaleDateString()}`;
+      document.getElementById('current-datetime').textContent = now.toLocaleString();
+    }
+
+    setInterval(updateDaysSincePlanting, 60000);
+    updateDaysSincePlanting();
+
+    // Sensor Data
+    async function fetchSensorData() {
+      try {
+        const response = await fetch('/get-sensor-data');
+        const data = await response.json();
+        
+        if (data.temperature !== null) {
+          document.getElementById('temp-value').textContent = data.temperature.toFixed(1);
+          document.getElementById('stat-temp').textContent = data.temperature.toFixed(1) + '°C';
+          document.getElementById('temp-status').className = 'sensor-status connected';
+          document.getElementById('temp-status').innerHTML = '<span class="status-dot dot-success"></span>Connected';
+          
+          document.getElementById('humid-value').textContent = data.humidity.toFixed(1);
+          document.getElementById('stat-humid').textContent = data.humidity.toFixed(1) + '%';
+          document.getElementById('humid-status').className = 'sensor-status connected';
+          document.getElementById('humid-status').innerHTML = '<span class="status-dot dot-success"></span>Connected';
+        }
+      } catch (err) {
+        console.error('Error:', err);
+      }
+    }
+
+    setInterval(fetchSensorData, 5000);
+    fetchSensorData();
+
+    // Charts
+    const tempChart = new Chart(document.getElementById('temp-chart'), {
+      type: 'line',
+      data: {
+        labels: [],
+        datasets: [{
+          label: 'Temperature',
+          data: [],
+          borderColor: '#4caf50',
+          backgroundColor: 'rgba(76, 175, 80, 0.05)',
+          tension: 0.4,
+          borderWidth: 2,
+          pointRadius: 0
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: true,
+        plugins: { legend: { display: false } },
+        scales: {
+          y: { 
+            grid: { color: '#f0f0f0' },
+            ticks: { font: { size: 11 } }
+          },
+          x: { 
+            grid: { display: false },
+            ticks: { font: { size: 11 } }
+          }
+        }
+      }
+    });
+
+    const humidChart = new Chart(document.getElementById('humid-chart'), {
+      type: 'line',
+      data: {
+        labels: [],
+        datasets: [{
+          label: 'Humidity',
+          data: [],
+          borderColor: '#2196f3',
+          backgroundColor: 'rgba(33, 150, 243, 0.05)',
+          tension: 0.4,
+          borderWidth: 2,
+          pointRadius: 0
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: true,
+        plugins: { legend: { display: false } },
+        scales: {
+          y: { 
+            grid: { color: '#f0f0f0' },
+            ticks: { font: { size: 11 } }
+          },
+          x: { 
+            grid: { display: false },
+            ticks: { font: { size: 11 } }
+          }
+        }
+      }
+    });
+
+
+// Fetch and update sensor history charts
+    async function updateSensorCharts() {
+      try {
+        const response = await fetch('/get-sensor-history?limit=50');
+        const data = await response.json();
+        
+        if (data.temperature && data.temperature.length > 0) {
+          // Update temperature chart
+          tempChart.data.labels = data.timestamps.map(ts => {
+            const date = new Date(ts);
+            return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+          });
+          tempChart.data.datasets[0].data = data.temperature;
+          tempChart.update();
+          
+          // Update humidity chart
+          humidChart.data.labels = data.timestamps.map(ts => {
+            const date = new Date(ts);
+            return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+          });
+          humidChart.data.datasets[0].data = data.humidity;
+          humidChart.update();
+          
+          // Update stats
+          const temps = data.temperature;
+          const humids = data.humidity;
+          document.getElementById('temp-avg').textContent = (temps.reduce((a,b) => a+b) / temps.length).toFixed(1);
+          document.getElementById('temp-min').textContent = Math.min(...temps).toFixed(1);
+          document.getElementById('temp-max').textContent = Math.max(...temps).toFixed(1);
+          document.getElementById('humid-avg').textContent = (humids.reduce((a,b) => a+b) / humids.length).toFixed(1);
+          document.getElementById('humid-min').textContent = Math.min(...humids).toFixed(1);
+          document.getElementById('humid-max').textContent = Math.max(...humids).toFixed(1);
+        }
+      } catch (err) {
+        console.error('Chart update error:', err);
+      }
+    }
+
+    setInterval(updateSensorCharts, 10000); // Update every 10 seconds
+    updateSensorCharts();
+
+// GROWTH PROGRESSION & DAILY CHARTS
+
+let growthData = {
+  labels: [],
+  ready: [],
+  notReady: [],
+  total: []
+};
+
+let dailyData = {
+  labels: [],
+  ready: [],
+  notReady: []
+};
+
+// Initialize Growth Progression Chart
+const growthChart = new Chart(document.getElementById('growth-chart'), {
+  type: 'line',
+  data: {
+    labels: growthData.labels,
+    datasets: [
+      {
+        label: 'Ready to Harvest',
+        data: growthData.ready,
+        borderColor: '#4caf50',
+        backgroundColor: 'rgba(76, 175, 80, 0.1)',
+        tension: 0.4,
+        borderWidth: 3,
+        fill: true,
+        pointRadius: 4,
+        pointBackgroundColor: '#4caf50'
+      },
+      {
+        label: 'Not Ready',
+        data: growthData.notReady,
+        borderColor: '#ff9800',
+        backgroundColor: 'rgba(255, 152, 0, 0.1)',
+        tension: 0.4,
+        borderWidth: 2,
+        fill: true,
+        pointRadius: 3,
+        pointBackgroundColor: '#ff9800'
+      }
+    ]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    interaction: {
+      mode: 'index',
+      intersect: false
+    },
+    plugins: {
+      legend: {
+        display: true,
+        position: 'top',
+        labels: {
+          boxWidth: 12,
+          padding: 15
+        }
+      },
+      tooltip: {
+        mode: 'index',
+        intersect: false,
+        callbacks: {
+          label: function(context) {
+            let label = context.dataset.label || '';
+            if (label) {
+              label += ': ';
+            }
+            label += context.parsed.y;
+            return label;
+          }
+        }
+      }
+    },
+    scales: {
+      y: {
+        beginAtZero: true,
+        grid: {
+          color: '#f0f0f0'
+        },
+        ticks: {
+          font: {
+            size: 11
+          }
+        },
+        title: {
+          display: true,
+          text: 'Number of Plants',
+          font: {
+            size: 12,
+            weight: 'bold'
+          }
+        }
+      },
+      x: {
+        grid: {
+          display: false
+        },
+        ticks: {
+          font: {
+            size: 11
+          }
+        },
+        title: {
+          display: true,
+          text: 'Days Since Planting',
+          font: {
+            size: 12,
+            weight: 'bold'
+          }
+        }
+      }
+    }
+  }
+});
+
+// Initialize Daily Detection Summary Chart
+const dailyChart = new Chart(document.getElementById('daily-chart'), {
+  type: 'bar',
+  data: {
+    labels: dailyData.labels,
+    datasets: [
+      {
+        label: 'Ready',
+        data: dailyData.ready,
+        backgroundColor: '#4caf50',
+        borderRadius: 4,
+        borderWidth: 1,
+        borderColor: '#388e3c'
+      },
+      {
+        label: 'Not Ready',
+        data: dailyData.notReady,
+        backgroundColor: '#ff9800',
+        borderRadius: 4,
+        borderWidth: 1,
+        borderColor: '#f57c00'
+      }
+    ]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        display: true,
+        position: 'top',
+        labels: {
+          boxWidth: 12,
+          padding: 15
+        }
+      },
+      tooltip: {
+        callbacks: {
+          label: function(context) {
+            let total = dailyData.ready[context.dataIndex] + dailyData.notReady[context.dataIndex];
+            let percentage = total > 0 ? Math.round((context.parsed.y / total) * 100) : 0;
+            return `${context.dataset.label}: ${context.parsed.y} (${percentage}%)`;
+          }
+        }
+      }
+    },
+    scales: {
+      y: {
+        beginAtZero: true,
+        stacked: false,
+        grid: {
+          color: '#f0f0f0'
+        },
+        ticks: {
+          font: {
+            size: 11
+          }
+        },
+        title: {
+          display: true,
+          text: 'Number of Plants',
+          font: {
+            size: 12,
+            weight: 'bold'
+          }
+        }
+      },
+      x: {
+        stacked: false,
+        grid: {
+          display: false
+        },
+        ticks: {
+          font: {
+            size: 11
+          }
+        }
+      }
+    }
+  }
+});
+
+// DATA MANAGEMENT FUNCTIONS
+function getCurrentDate() {
+  const now = new Date();
+  return now.toISOString().split('T')[0]; // YYYY-MM-DD
+}
+
+function getDaysSincePlanting() {
+  const savedDateTime = localStorage.getItem('plantingDateTime');
+  if (!savedDateTime) return 0;
+  
+  const plantingDate = new Date(savedDateTime);
+  const now = new Date();
+  return Math.floor((now - plantingDate) / (1000 * 60 * 60 * 24));
+}
+
+function updateGrowthChartData(readyCount, notReadyCount) {
+  const day = getDaysSincePlanting();
+  const today = getCurrentDate();
+  
+  // Get existing data from localStorage
+  let storedData = JSON.parse(localStorage.getItem('growthChartData') || '{}');
+  
+  // Initialize if empty
+  if (!storedData.labels) {
+    storedData = {
+      labels: [],
+      ready: [],
+      notReady: [],
+      total: [],
+      lastUpdated: ''
+    };
+  }
+  
+  // Only add new data if it's a new day or first entry
+  const lastLabel = storedData.labels[storedData.labels.length - 1];
+  if (!lastLabel || lastLabel !== `Day ${day}`) {
+    storedData.labels.push(`Day ${day}`);
+    storedData.ready.push(readyCount);
+    storedData.notReady.push(notReadyCount);
+    storedData.total.push(readyCount + notReadyCount);
+    storedData.lastUpdated = today;
+  } else {
+    // Update today's data
+    const lastIndex = storedData.ready.length - 1;
+    storedData.ready[lastIndex] = readyCount;
+    storedData.notReady[lastIndex] = notReadyCount;
+    storedData.total[lastIndex] = readyCount + notReadyCount;
+  }
+  
+  // Limit to 45 days (full growth cycle)
+  if (storedData.labels.length > 45) {
+    storedData.labels = storedData.labels.slice(-45);
+    storedData.ready = storedData.ready.slice(-45);
+    storedData.notReady = storedData.notReady.slice(-45);
+    storedData.total = storedData.total.slice(-45);
+  }
+  
+  // Save to localStorage
+  localStorage.setItem('growthChartData', JSON.stringify(storedData));
+  
+  // Update chart
+  growthChart.data.labels = storedData.labels;
+  growthChart.data.datasets[0].data = storedData.ready;
+  growthChart.data.datasets[1].data = storedData.notReady;
+  growthChart.update();
+  
+  // Update stats
+  updateGrowthStats(storedData);
+}
+
+function updateDailyChartData(readyCount, notReadyCount) {
+  const today = getCurrentDate();
+  
+  // Get existing data from localStorage
+  let storedData = JSON.parse(localStorage.getItem('dailyChartData') || '{}');
+  
+  // Initialize if empty
+  if (!storedData.labels) {
+    storedData = {
+      labels: [],
+      ready: [],
+      notReady: [],
+      dates: []
+    };
+  }
+  
+  // Check if we already have today's entry
+  const todayIndex = storedData.dates.indexOf(today);
+  
+  if (todayIndex === -1) {
+    // New day - add entry
+    storedData.labels.push(formatDateForDisplay(today));
+    storedData.ready.push(readyCount);
+    storedData.notReady.push(notReadyCount);
+    storedData.dates.push(today);
+  } else {
+    // Update existing day
+    storedData.ready[todayIndex] = readyCount;
+    storedData.notReady[todayIndex] = notReadyCount;
+  }
+  
+  // Limit to last 30 days
+  if (storedData.labels.length > 30) {
+    storedData.labels = storedData.labels.slice(-30);
+    storedData.ready = storedData.ready.slice(-30);
+    storedData.notReady = storedData.notReady.slice(-30);
+    storedData.dates = storedData.dates.slice(-30);
+  }
+  
+  // Save to localStorage
+  localStorage.setItem('dailyChartData', JSON.stringify(storedData));
+  
+  // Update chart
+  dailyChart.data.labels = storedData.labels;
+  dailyChart.data.datasets[0].data = storedData.ready;
+  dailyChart.data.datasets[1].data = storedData.notReady;
+  dailyChart.update();
+  
+  // Update stats
+  updateDailyStats(storedData);
+}
+
+function formatDateForDisplay(dateStr) {
+  const date = new Date(dateStr);
+  const day = date.getDate().toString().padStart(2, '0');
+  const month = (date.getMonth() + 1).toString().padStart(2, '0');
+  return `${month}/${day}`;
+}
+
+function updateGrowthStats(data) {
+  if (!data.ready || data.ready.length === 0) return;
+  
+  const lastIndex = data.ready.length - 1;
+  const readyToday = data.ready[lastIndex] || 0;
+  const totalToday = data.total[lastIndex] || 0;
+  const percentage = totalToday > 0 ? Math.round((readyToday / totalToday) * 100) : 0;
+  
+  document.getElementById('growth-ready-today').textContent = readyToday;
+  document.getElementById('growth-total').textContent = totalToday;
+  document.getElementById('growth-percentage').textContent = percentage + '%';
+}
+
+function updateDailyStats(data) {
+  if (!data.ready || data.ready.length === 0) return;
+  
+  // Calculate average ready per day
+  const avgReady = Math.round(data.ready.reduce((a, b) => a + b, 0) / data.ready.length);
+  document.getElementById('daily-avg-ready').textContent = avgReady;
+  
+  // Calculate trend (last 3 days vs previous 3 days)
+  if (data.ready.length >= 6) {
+    const last3Avg = data.ready.slice(-3).reduce((a, b) => a + b, 0) / 3;
+    const prev3Avg = data.ready.slice(-6, -3).reduce((a, b) => a + b, 0) / 3;
+    const trend = last3Avg > prev3Avg ? '↗' : last3Avg < prev3Avg ? '↘' : '→';
+    document.getElementById('daily-trend').textContent = trend;
+  }
+  
+  // Find best day
+  const maxReady = Math.max(...data.ready);
+  const bestDayIndex = data.ready.indexOf(maxReady);
+  if (bestDayIndex !== -1) {
+    document.getElementById('daily-best').textContent = data.labels[bestDayIndex];
+  }
+}
+
+function setChartTimeframe(chartType, timeframe) {
+  // Remove active class from all tabs
+  const tabs = document.querySelectorAll(`#${chartType}-chart`).closest('.card').querySelectorAll('.tab-btn');
+  tabs.forEach(tab => tab.classList.remove('active'));
+  
+  // Add active class to clicked tab
+  event.target.classList.add('active');
+  
+  if (chartType === 'growth') {
+    applyGrowthTimeframe(timeframe);
+  } else if (chartType === 'daily') {
+    applyDailyTimeframe(timeframe);
+  }
+}
+
+function applyGrowthTimeframe(timeframe) {
+  const storedData = JSON.parse(localStorage.getItem('growthChartData') || '{}');
+  if (!storedData.labels) return;
+  
+  let startIndex = 0;
+  
+  switch(timeframe) {
+    case 'week':
+      startIndex = Math.max(0, storedData.labels.length - 7);
+      break;
+    case 'month':
+      startIndex = Math.max(0, storedData.labels.length - 30);
+      break;
+    case 'all':
+    default:
+      startIndex = 0;
+  }
+  
+  growthChart.data.labels = storedData.labels.slice(startIndex);
+  growthChart.data.datasets[0].data = storedData.ready.slice(startIndex);
+  growthChart.data.datasets[1].data = storedData.notReady.slice(startIndex);
+  growthChart.update();
+}
+
+function applyDailyTimeframe(timeframe) {
+  const storedData = JSON.parse(localStorage.getItem('dailyChartData') || '{}');
+  if (!storedData.labels) return;
+  
+  let startIndex = 0;
+  
+  switch(timeframe) {
+    case 'week':
+      startIndex = Math.max(0, storedData.labels.length - 7);
+      break;
+    case 'month':
+      startIndex = Math.max(0, storedData.labels.length - 30);
+      break;
+    case 'all':
+    default:
+      startIndex = 0;
+  }
+  
+  dailyChart.data.labels = storedData.labels.slice(startIndex);
+  dailyChart.data.datasets[0].data = storedData.ready.slice(startIndex);
+  dailyChart.data.datasets[1].data = storedData.notReady.slice(startIndex);
+  dailyChart.update();
+}
+
+
+// Initialize charts on page load
+window.addEventListener('load', () => {
+  // Load existing chart data from localStorage
+  const growthStored = JSON.parse(localStorage.getItem('growthChartData') || '{}');
+  const dailyStored = JSON.parse(localStorage.getItem('dailyChartData') || '{}');
+  
+  if (growthStored.labels && growthStored.labels.length > 0) {
+    growthChart.data.labels = growthStored.labels;
+    growthChart.data.datasets[0].data = growthStored.ready;
+    growthChart.data.datasets[1].data = growthStored.notReady;
+    growthChart.update();
+    updateGrowthStats(growthStored);
+  }
+  
+  if (dailyStored.labels && dailyStored.labels.length > 0) {
+    dailyChart.data.labels = dailyStored.labels;
+    dailyChart.data.datasets[0].data = dailyStored.ready;
+    dailyChart.data.datasets[1].data = dailyStored.notReady;
+    dailyChart.update();
+    updateDailyStats(dailyStored);
+  }
+  
+  // If planting date is set, initialize with today's data
+  if (localStorage.getItem('plantingDateTime')) {
+    // You might want to fetch current data here
+  }
+});
+    
+
+// ANALYTICS DASHBOARD FUNCTIONS
+  let analyticsData = {
+    readyCount: 0,
+    notReadyCount: 0,
+    totalDetections: 0,
+    growthHistory: [],
+    environmentData: [{
+  timestamp: new Date().toISOString(),
+  temperature: parseFloat(document.getElementById('stat-temp').textContent) || null,
+  humidity: parseFloat(document.getElementById('stat-humid').textContent) || null
+}]
+  };
+
+  // Initialize Analytics Charts
+  const readinessTrendChart = new Chart(document.getElementById('readiness-trend-chart'), {
+    type: 'line',
+    data: {
+      labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+      datasets: [
+        {
+          label: 'Ready %',
+          data: [0, 0, 0, 0, 0, 0, 0],
+          borderColor: '#4caf50',
+          backgroundColor: 'rgba(76, 175, 80, 0.1)',
+          tension: 0.4,
+          borderWidth: 2,
+          fill: true
+        },
+        {
+          label: 'Growth Rate',
+          data: [0, 0, 0, 0, 0, 0, 0],
+          borderColor: '#2196f3',
+          backgroundColor: 'rgba(33, 150, 243, 0.1)',
+          tension: 0.4,
+          borderWidth: 2,
+          fill: true
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          display: true,
+          position: 'top'
+        }
+      },
+      scales: {
+        y: {
+          beginAtZero: true,
+          max: 100,
+          ticks: {
+            callback: function(value) {
+              return value + '%';
+            }
+          }
+        }
+      }
+    }
+  });
+
+  const growthDistributionChart = new Chart(document.getElementById('growth-distribution-chart'), {
+    type: 'doughnut',
+    data: {
+      labels: ['Ready', 'Vegetative', 'Seedling', 'Not Detected'],
+      datasets: [{
+        data: [25, 40, 25, 10],
+        backgroundColor: [
+          '#4caf50',
+          '#8bc34a',
+          '#cddc39',
+          '#ffeb3b'
+        ],
+        borderWidth: 2,
+        borderColor: '#fff'
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          position: 'bottom'
+        }
+      },
+      cutout: '70%'
+    }
+  });
+
+  // Update Analytics with Live Data
+  function updateAnalytics(detectionData) {
+    // Update basic counts
+    analyticsData.readyCount = detectionData.ready_count || 0;
+    analyticsData.notReadyCount = detectionData.not_ready_count || 0;
+    analyticsData.totalDetections = detectionData.total_count || 0;
+    
+    // Add to growth history
+    const today = new Date().toISOString().split('T')[0];
+    const existingIndex = analyticsData.growthHistory.findIndex(item => item.date === today);
+    
+    if (existingIndex === -1) {
+      analyticsData.growthHistory.push({
+        date: today,
+        ready: detectionData.ready_count,
+        notReady: detectionData.not_ready_count,
+        total: detectionData.total_count
+      });
+    } else {
+      analyticsData.growthHistory[existingIndex] = {
+        date: today,
+        ready: detectionData.ready_count,
+        notReady: detectionData.not_ready_count,
+        total: detectionData.total_count
+      };
+    }
+    
+    // Keep only last 30 days
+    if (analyticsData.growthHistory.length > 30) {
+      analyticsData.growthHistory = analyticsData.growthHistory.slice(-30);
+    }
+    
+    // Update all analytics displays
+    updateAnalyticsDisplay();
+    updateCharts();
+    updateRecommendations();
+  }
+
+  // Update Analytics Display
+  function updateAnalyticsDisplay() {
+    const total = analyticsData.readyCount + analyticsData.notReadyCount;
+    
+    // Summary Cards
+    document.getElementById('harvest-ready').textContent = analyticsData.readyCount;
+    document.getElementById('growing').textContent = analyticsData.notReadyCount;
+    
+    // Calculate growth rate
+    let growthRate = 0;
+    if (analyticsData.growthHistory.length >= 2) {
+      const todayReady = analyticsData.readyCount;
+      const yesterdayData = analyticsData.growthHistory[analyticsData.growthHistory.length - 2];
+      const yesterdayReady = yesterdayData ? yesterdayData.ready : 0;
+      
+      if (yesterdayReady > 0) {
+        growthRate = ((todayReady - yesterdayReady) / yesterdayReady * 100).toFixed(1);
+      }
+    }
+    
+    document.getElementById('growth-rate').textContent = growthRate + '%';
+    
+    // Calculate days remaining
+    const daysSincePlanting = getDaysSincePlanting();
+    let daysRemaining = 45 - daysSincePlanting;
+    if (daysRemaining < 0) daysRemaining = 0;
+    
+    document.getElementById('days-remaining').textContent = daysRemaining;
+    
+    // Calculate harvest date
+    if (daysSincePlanting > 0) {
+      const plantingDate = new Date(localStorage.getItem('plantingDateTime'));
+      const harvestDate = new Date(plantingDate);
+      harvestDate.setDate(harvestDate.getDate() + 45);
+      document.getElementById('harvest-date').textContent = harvestDate.toLocaleDateString();
+    }
+    
+    // Update metrics
+    const efficiency = total > 0 ? Math.round((analyticsData.readyCount / total) * 100) : 0;
+    document.getElementById('efficiency-score').textContent = efficiency + '%';
+    document.getElementById('efficiency-bar').style.width = efficiency + '%';
+    
+    // Success rate (simulated - in real app would use health data)
+    const successRate = Math.min(100, Math.round(efficiency * 1.2));
+    document.getElementById('success-rate').textContent = successRate + '%';
+    
+    // Yield estimate (simulated: ~150g per mature lettuce)
+    const yieldEstimate = analyticsData.readyCount * 150;
+    document.getElementById('yield-estimate').textContent = (yieldEstimate / 1000).toFixed(1) + ' kg';
+    
+    // Average growth time (simulated based on days since planting)
+    const avgGrowthTime = Math.min(45, Math.round(daysSincePlanting * (analyticsData.readyCount / total || 1)));
+    document.getElementById('avg-growth-time').textContent = avgGrowthTime + ' days';
+    
+    // Update forecast
+    const weeklyRate = analyticsData.readyCount / Math.max(1, daysSincePlanting) * 7;
+    document.getElementById('forecast-week').textContent = Math.round(weeklyRate) + ' heads';
+    document.getElementById('forecast-next-week').textContent = Math.round(weeklyRate * 2) + ' heads';
+    document.getElementById('forecast-full').textContent = Math.round(weeklyRate * (45 / 7)) + ' heads';
+    document.getElementById('current-growth-rate').textContent = (analyticsData.readyCount / Math.max(1, daysSincePlanting)).toFixed(1);
+  }
+
+  // Update Charts
+  function updateCharts() {
+    if (analyticsData.growthHistory.length === 0) return;
+    
+    // Get last 7 days of data
+    const last7Days = analyticsData.growthHistory.slice(-7);
+    
+    // Update readiness trend chart
+    const readinessData = last7Days.map(day => {
+      const total = day.ready + day.notReady;
+      return total > 0 ? Math.round((day.ready / total) * 100) : 0;
+    });
+    
+    // Update growth rate data
+    const growthRateData = [];
+    for (let i = 0; i < last7Days.length; i++) {
+      if (i === 0) {
+        growthRateData.push(0);
+      } else {
+        const prevTotal = last7Days[i-1].ready + last7Days[i-1].notReady;
+        const currTotal = last7Days[i].ready + last7Days[i].notReady;
+        const rate = prevTotal > 0 ? ((currTotal - prevTotal) / prevTotal * 100) : 0;
+        growthRateData.push(Math.round(rate));
+      }
+    }
+    
+    readinessTrendChart.data.datasets[0].data = readinessData;
+    readinessTrendChart.data.datasets[1].data = growthRateData;
+    readinessTrendChart.update();
+    
+    // Update distribution chart
+    const total = analyticsData.readyCount + analyticsData.notReadyCount;
+    const readyPercent = total > 0 ? Math.round((analyticsData.readyCount / total) * 100) : 0;
+    const notReadyPercent = total > 0 ? 100 - readyPercent : 0;
+    
+    // Simulate distribution for demo
+    growthDistributionChart.data.datasets[0].data = [
+      analyticsData.readyCount,
+      Math.round(analyticsData.notReadyCount * 0.6),
+      Math.round(analyticsData.notReadyCount * 0.3),
+      Math.round(analyticsData.notReadyCount * 0.1)
+    ];
+    growthDistributionChart.update();
+    
+    // Update chart stats
+    document.getElementById('peak-readiness').textContent = Math.max(...readinessData) + '%';
+    document.getElementById('avg-daily-gain').textContent = Math.round(growthRateData.reduce((a, b) => a + b, 0) / growthRateData.length) + '%';
+    document.getElementById('healthiest-stage').textContent = analyticsData.readyCount > analyticsData.notReadyCount ? 'Mature' : 'Vegetative';
+    document.getElementById('needs-attention').textContent = analyticsData.notReadyCount > 0 ? Math.round((analyticsData.notReadyCount / total) * 100) + '%' : '0%';
+  }
+
+  // Update Recommendations
+  function updateRecommendations() {
+    const recommendationsList = document.getElementById('recommendations-list');
+    const recommendations = [];
+    
+    const total = analyticsData.readyCount + analyticsData.notReadyCount;
+    const readyPercentage = total > 0 ? (analyticsData.readyCount / total) * 100 : 0;
+    
+    // Generate recommendations based on data
+    if (total === 0) {
+      recommendations.push({
+        icon: 'fas fa-info-circle',
+        text: 'No lettuce detected yet. Check camera position and lighting.',
+        color: '#2196f3'
+      });
+    } else if (readyPercentage < 20) {
+      recommendations.push({
+        icon: 'fas fa-tint',
+        text: 'Low readiness rate. Consider adjusting nutrient solution concentration.',
+        color: '#ff9800'
+      });
+      recommendations.push({
+        icon: 'fas fa-sun',
+        text: 'Increase light exposure to 14-16 hours daily for faster growth.',
+        color: '#ff9800'
+      });
+    } else if (readyPercentage > 70) {
+      recommendations.push({
+        icon: 'fas fa-check-circle',
+        text: 'Excellent growth rate! Plan for harvest in the coming days.',
+        color: '#4caf50'
+      });
+      recommendations.push({
+        icon: 'fas fa-seedling',
+        text: 'Consider starting new seedlings for continuous production.',
+        color: '#4caf50'
+      });
+    } else {
+      recommendations.push({
+        icon: 'fas fa-chart-line',
+        text: 'Growth is progressing normally. Maintain current conditions.',
+        color: '#4caf50'
+      });
+    }
+    
+    // Check days since planting
+    const daysSincePlanting = getDaysSincePlanting();
+    if (daysSincePlanting > 35 && readyPercentage < 50) {
+      recommendations.push({
+        icon: 'fas fa-exclamation-triangle',
+        text: 'Growth seems slower than expected. Check pH levels (5.5-6.5 optimal).',
+        color: '#f44336'
+      });
+    }
+    
+    // Update recommendations display
+    recommendationsList.innerHTML = recommendations.map(rec => `
+      <div class="recommendation" style="border-left-color: ${rec.color}">
+        <i class="${rec.icon}" style="color: ${rec.color}"></i>
+        <span>${rec.text}</span>
+      </div>
+    `).join('');
+  }
+
+  // Refresh Analytics
+  function refreshAnalytics() {
+    // Simulate data refresh
+    const btn = event.target.closest('button');
+    const originalHTML = btn.innerHTML;
+    
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Refreshing...';
+    btn.disabled = true;
+    
+    setTimeout(() => {
+      updateAnalyticsDisplay();
+      updateCharts();
+      updateRecommendations();
+      
+      btn.innerHTML = originalHTML;
+      btn.disabled = false;
+      
+      // Show success notification
+      showNotification('Analytics refreshed successfully!', 'success');
+    }, 1000);
+  }
+
+  // Export Analytics
+  function exportAnalytics() {
+    const data = {
+      timestamp: new Date().toISOString(),
+      analytics: analyticsData,
+      summary: {
+        readyCount: analyticsData.readyCount,
+        notReadyCount: analyticsData.notReadyCount,
+        total: analyticsData.readyCount + analyticsData.notReadyCount,
+        efficiency: Math.round((analyticsData.readyCount / (analyticsData.readyCount + analyticsData.notReadyCount)) * 100) || 0
+      }
+    };
+    
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `lettuce-analytics-${new Date().toISOString().split('T')[0]}.json`;
+    a.click();
+    
+    showNotification('Analytics data exported!', 'success');
+  }
+
+  // Reset Analytics
+  function resetAnalytics() {
+    if (!confirm('Are you sure you want to reset all analytics data? This cannot be undone.')) {
+      return;
+    }
+    
+    // Clear localStorage
+    localStorage.removeItem('analyticsData');
+    localStorage.removeItem('plantingDateTime');
+    
+    // Reset analytics data
+    analyticsData = {
+      readyCount: 0,
+      notReadyCount: 0,
+      totalDetections: 0,
+      growthHistory: [],
+      environmentData: []
+    };
+    
+    // Reset planting date
+    document.getElementById('plantingDate').value = '';
+    document.getElementById('plantingTime').value = '';
+    document.getElementById('daysGrowing').textContent = '--';
+    
+    // Update all displays
+    updateAnalytics(null);
+    
+    showNotification('Analytics data has been reset!', 'success');
+  }
+
+  // Notification function
+  function showNotification(message, type = 'info') {
+    const notification = document.createElement('div');
+    notification.className = `notification ${type}`;
+    notification.innerHTML = `
+      <i class="fas fa-${type === 'success' ? 'check-circle' : 'info-circle'}"></i>
+      <span>${message}</span>
+      <button onclick="this.parentElement.remove()">&times;</button>
+    `;
+    
+    notification.style.cssText = `
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      background: ${type === 'success' ? '#4caf50' : '#2196f3'};
+      color: white;
+      padding: 1rem 1.5rem;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      z-index: 9999;
+      animation: slideIn 0.3s ease;
+    `;
+    
+    document.body.appendChild(notification);
+    
+    setTimeout(() => {
+      if (notification.parentElement) {
+        notification.remove();
+      }
+    }, 3000);
+  }
+
+
+  
+ window.addEventListener('load', () => {
+   // ===== ADD THIS NEW SECTION =====
+  // Load saved growth history for charts
+  const savedHistory = localStorage.getItem('growthHistory');
+  if (savedHistory) {
+    try {
+      const history = JSON.parse(savedHistory);
+      if (history.length > 0) {
+        // Update readiness trend chart with last 7 days
+        const last7Days = history.slice(-7);
+        const readinessData = last7Days.map(day => 
+          day.total > 0 ? Math.round((day.ready / day.total) * 100) : 0
+        );
+        
+        // Update readiness trend chart
+        readinessTrendChart.data.datasets[0].data = readinessData;
+        readinessTrendChart.update();
+        
+        // Update growth chart with latest data
+        const latest = history[history.length - 1];
+        if (latest) {
+          analyticsData.readyCount = latest.ready;
+          analyticsData.notReadyCount = latest.notReady;
+          analyticsData.totalDetections = latest.total;
+          analyticsData.growthHistory = history;
+          
+          updateAnalyticsDisplay();
+          updateDistributionChart();
+        }
+        
+        // Also update the growth progression and daily charts
+        if (typeof growthChart !== 'undefined') {
+          // Rebuild growth chart data from history
+          const growthLabels = history.map(h => `Day ${h.day || h.daysSincePlanting || 0}`);
+          const readyData = history.map(h => h.ready);
+          const notReadyData = history.map(h => h.notReady);
+          
+          growthChart.data.labels = growthLabels;
+          growthChart.data.datasets[0].data = readyData;
+          growthChart.data.datasets[1].data = notReadyData;
+          growthChart.update();
+        }
+        
+        if (typeof dailyChart !== 'undefined') {
+          // Rebuild daily chart data from last 7 days
+          const last7DaysLabels = last7Days.map(h => {
+            const date = new Date(h.date);
+            return `${date.getMonth()+1}/${date.getDate()}`;
+          });
+          const last7DaysReady = last7Days.map(h => h.ready);
+          const last7DaysNotReady = last7Days.map(h => h.notReady);
+          
+          dailyChart.data.labels = last7DaysLabels;
+          dailyChart.data.datasets[0].data = last7DaysReady;
+          dailyChart.data.datasets[1].data = last7DaysNotReady;
+          dailyChart.update();
+        }
+      }
+    } catch (e) {
+      console.error('Error loading history:', e);
+    }
+  }
+
+  // Load saved analytics data
+  const savedData = localStorage.getItem('analyticsData');
+  if (savedData) {
+    try {
+      const parsedData = JSON.parse(savedData);
+      // Merge with defaults to ensure all properties exist
+      analyticsData = {
+        ...analyticsData,  // Default values
+        ...parsedData      // Saved values override defaults
+      };
+      updateAnalyticsDisplay();
+      updateCharts();
+      updateRecommendations();
+    } catch (e) {
+      console.error('Error loading analytics data:', e);
+      // Keep default analyticsData
+    }
+  }
+  
+  // Also update analytics with any current data
+  if (typeof latest_detection !== 'undefined') {
+    updateAnalytics(latest_detection);
+  }
+});
+    
+
+    // LIVE DETECTION with Socket.IO
+    const socket = io({
+      transports: ['websocket', 'polling']
+    });
+    let frameCountLiveVar = 0;
+    let fpsIntervalLive;
+
+    // Add pulsing animation for connected dot
+    const style = document.createElement('style');
+    style.textContent = `
+      @keyframes pulse-dot {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.5; }
+      }
+      .status-dot.connected {
+        background: #4caf50 !important;
+        box-shadow: 0 0 10px rgba(76, 175, 80, 0.5);
+        animation: pulse-dot 2s infinite;
+      }
+    `;
+    document.head.appendChild(style);
+
+    socket.on('connect', () => {
+      console.log('Connected to server');
+      document.getElementById('statusText').textContent = 'Connected';
+      document.getElementById('statusDot').classList.add('connected');
+    });
+
+    socket.on('disconnect', () => {
+      console.log('Disconnected');
+      document.getElementById('statusText').textContent = 'Disconnected';
+      document.getElementById('statusDot').classList.remove('connected');
+    });
+
+    socket.on('stream_status', (data) => {
+      if (data.status === 'started') {
+        document.getElementById('statusText').textContent = 'Streaming';
+      } else if (data.status === 'stopped') {
+        document.getElementById('statusText').textContent = 'Stopped';
+        document.getElementById('videoFrame').style.display = 'none';
+        document.getElementById('noStream').style.display = 'flex';
+      }
+    });
+
+    socket.on('detection_update', (data) => {
+      // video frame
+      document.getElementById('videoFrame').src = data.frame;
+      document.getElementById('videoFrame').style.display = 'block';
+      document.getElementById('noStream').style.display = 'none';
+
+      //counts
+      document.getElementById('readyCountLive').textContent = data.ready_count;
+      document.getElementById('notReadyCountLive').textContent = data.not_ready_count;
+      document.getElementById('totalCountLive').textContent = data.total_count;
+      
+      saveDetectionData(data);
+
+      // Update charts with detection data
+      updateGrowthChartData(data.ready_count, data.not_ready_count);
+      updateDailyChartData(data.ready_count, data.not_ready_count);
+      
+      //detection list
+      updateDetectionListLive(data.detections);
+
+      //stats
+      frameCountLiveVar++;
+      document.getElementById('frameCountLive').textContent = frameCountLiveVar;
+      
+      const now = Date.now();
+      const latency = now - (data.timestamp * 1000);
+      document.getElementById('latency').textContent = Math.round(latency) + 'ms';
+
+      //env data from live feed
+      if (data.temperature !== undefined) {
+        document.getElementById('tempValueLive').textContent = data.temperature.toFixed(1) + '°C';
+      }
+      if (data.humidity !== undefined) {
+        document.getElementById('humidValueLive').textContent = data.humidity.toFixed(1) + '%';
+      }
+    });
+
+    function startStream() {
+      socket.emit('start_live_stream');
+      document.getElementById('startBtn').disabled = true;
+      document.getElementById('stopBtn').disabled = false;
+      document.getElementById('statusText').textContent = 'Streaming';
+      
+      fpsIntervalLive = setInterval(() => {
+        document.getElementById('fpsCounter').textContent = frameCountLiveVar;
+        frameCountLiveVar = 0;
+      }, 1000);
+    }
+
+    function startStream() {
+      console.log('🔴 startStream called');
+      console.log('Socket connected:', socket.connected);
+      
+      if (!socket.connected) {
+        console.error('❌ Socket not connected!');
+        alert('Socket.IO not connected. Check console.');
+        return;
+      }
+      
+      console.log('📡 Emitting start_live_stream...');
+      socket.emit('start_live_stream');
+      
+      document.getElementById('startBtn').disabled = true;
+      document.getElementById('stopBtn').disabled = false;
+      document.getElementById('statusText').textContent = 'Streaming';
+      
+      fpsIntervalLive = setInterval(() => {
+        document.getElementById('fpsCounter').textContent = frameCountLiveVar;
+        frameCountLiveVar = 0;
+      }, 1000);
+    }
+
+    function stopStream() {
+      socket.emit('stop_live_stream');
+      document.getElementById('startBtn').disabled = false;
+      document.getElementById('stopBtn').disabled = true;
+      frameCountLiveVar = 0;
+      
+      clearInterval(fpsIntervalLive);
+      document.getElementById('fpsCounter').textContent = '0';
+      document.getElementById('videoFrame').style.display = 'none';
+      document.getElementById('noStream').style.display = 'flex';
+    }
+
+    function updateDetectionListLive(detections) {
+      const listEl = document.getElementById('detectionListLive');
+      
+      if (!detections || detections.length === 0) {
+        listEl.innerHTML = '<div style="text-align: center; color: #95a5a6; padding: 3rem 1rem; font-size: 1.1rem;">No detections yet</div>';
+        return;
+      }
+
+      listEl.innerHTML = detections.map(det => {
+        const isReady = det.label.toLowerCase().includes('ready') && !det.label.toLowerCase().includes('not');
+        return `
+          <div style="padding: 1.2rem; margin-bottom: 1rem; background: white; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.06); border-left: 4px solid ${isReady ? '#4caf50' : '#ff9800'};">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.6rem;">
+              <span style="font-weight: 600; font-size: 1.05rem; color: #2c3e50;">
+                ${isReady ? '✅' : '🌱'} ${det.label}
+              </span>
+              <span style="background: #e8f5e9; color: #2e7d32; padding: 0.35rem 0.75rem; border-radius: 12px; font-size: 0.9rem; font-weight: 600;">
+                ${(det.confidence * 100).toFixed(1)}%
+              </span>
+            </div>
+            ${det.health_status ? `
+              <div style="font-size: 0.95rem; color: #555;">
+                Health: <strong>${det.health_status}</strong> 
+                <span style="color: #6c757d;">(${(det.health_confidence * 100).toFixed(1)}%)</span>
+              </div>
+            ` : ''}
+          </div>
+        `;
+      }).join('');
+    }
+
+    // Sidebar Toggle Function
+    function toggleSidebar() {
+      const sidebar = document.querySelector('.sidebar');
+      sidebar.classList.toggle('collapsed');
+      
+      // Save preference to localStorage
+      const isCollapsed = sidebar.classList.contains('collapsed');
+      localStorage.setItem('sidebarCollapsed', isCollapsed);
+    }
+
+    function toggleMobileSidebar() {
+      const sidebar = document.querySelector('.sidebar');
+      sidebar.classList.toggle('mobile-open');
+    }
+
+    // Check saved preference on page load
+    window.addEventListener('load', () => {
+      const isCollapsed = localStorage.getItem('sidebarCollapsed') === 'true';
+      const sidebar = document.querySelector('.sidebar');
+      
+      if (isCollapsed) {
+        sidebar.classList.add('collapsed');
+      }
+      
+      // Mobile detection
+      const mobileToggle = document.querySelector('.mobile-toggle');
+      if (window.innerWidth <= 768) {
+        mobileToggle.style.display = 'flex';
+      } else {
+        mobileToggle.style.display = 'none';
+      }
+      
+      // Update on resize
+      window.addEventListener('resize', () => {
+        if (window.innerWidth <= 768) {
+          mobileToggle.style.display = 'flex';
+          // Close sidebar on mobile by default
+          sidebar.classList.remove('collapsed');
+        } else {
+          mobileToggle.style.display = 'none';
+          sidebar.classList.remove('mobile-open');
+        }
+      });
+    });
+    
+      // Update the existing navigation click handler
+  document.querySelectorAll('.nav-item').forEach(item => {
+    item.addEventListener('click', function(e) {
+      // Don't navigate if clicking the toggle button
+      if (e.target.closest('.toggle-btn')) {
+        return;
+      }
+      
+      const href = this.getAttribute('data-href');
+      if (href) {
+        // If on mobile, close sidebar after click
+        if (window.innerWidth <= 768) {
+          document.querySelector('.sidebar').classList.remove('mobile-open');
+        }
+        window.location.href = href;
+      }
+    });
+  });
+
+  // Temperature Alert System
+  let highTempAlertActive = false;
+  let alertCount = 0;
+  let lastAlertTime = null;
+  let tempHistory = [];
+  const MAX_HISTORY = 20;
+
+  // Function to check temperature and trigger alerts
+  function checkTemperatureAlert(currentTemp) {
+    // Add to history
+    tempHistory.push({
+      temp: currentTemp,
+      time: new Date(),
+      date: new Date().toLocaleDateString()
+    });
+    
+    // Keep only recent history
+    if (tempHistory.length > MAX_HISTORY) {
+      tempHistory.shift();
+    }
+    
+    // Check if temperature is 25°C or higher
+    if (currentTemp >= 25) {
+      // Show alert if not already showing
+      if (!highTempAlertActive) {
+        showTemperatureAlert(currentTemp);
+      }
+      
+      // Update sensor card appearance
+      highlightHighTemperature(currentTemp);
+      
+      // Update stats card
+      document.getElementById('stat-temp').closest('.stat-card').classList.add('high-temp');
+    } else {
+      // Temperature is normal
+      if (highTempAlertActive) {
+        hideTemperatureAlert();
+      }
+      
+      // Remove highlights
+      removeHighTemperatureHighlight();
+      
+      // Update stats card
+      document.getElementById('stat-temp').closest('.stat-card').classList.remove('high-temp');
+    }
+  }
+  
+  // Show temperature alert
+  function showTemperatureAlert(currentTemp) {
+    highTempAlertActive = true;
+    alertCount++;
+    
+    const alertBanner = document.getElementById('tempAlertBanner');
+    const alertMessage = document.getElementById('tempAlertMessage');
+    
+    // Create informative message
+    const now = new Date();
+    const timeStr = now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+    const dateStr = now.toLocaleDateString();
+    
+    let message = `Temperature is currently ${currentTemp.toFixed(1)}°C (above 25°C threshold). `;
+    
+    // Add trend information if available
+    if (tempHistory.length >= 2) {
+      const prevTemp = tempHistory[tempHistory.length - 2].temp;
+      const diff = currentTemp - prevTemp;
+      
+      if (Math.abs(diff) > 0.5) {
+        const trend = diff > 0 ? 'increasing' : 'decreasing';
+        message += `Temperature is ${trend}. `;
+      }
+    }
+    
+    message += `Last alert: ${timeStr}`;
+    
+    alertMessage.textContent = message;
+    alertBanner.classList.add('show');
+    lastAlertTime = now;
+    
+    // Add alert badge to sensor card if not already present
+    addAlertBadge();
+    
+    // Log to console (in real app, you might want to send to server)
+    console.log(`High temperature alert: ${currentTemp}°C at ${timeStr}`);
+  }
+  
+  // Hide temperature alert
+  function hideTemperatureAlert() {
+    highTempAlertActive = false;
+    document.getElementById('tempAlertBanner').classList.remove('show');
+    removeAlertBadge();
+  }
+  
+  // Manually close alert
+  function closeTempAlert() {
+    hideTemperatureAlert();
+    // You could add logic to temporarily suppress alerts here
+  }
+  
+  // Highlight high temperature on sensor card
+  function highlightHighTemperature(currentTemp) {
+    const tempCard = document.querySelector('.sensor-card:nth-child(1)');
+    const tempValue = document.getElementById('temp-value');
+    
+    if (tempCard && tempValue) {
+      tempCard.classList.add('temp-card-warning');
+      tempValue.classList.add('temp-value-high');
+      
+      // Update temperature display with warning color
+      tempValue.innerHTML = `${currentTemp.toFixed(1)} <span style="color:#ff5252;font-size:1rem;">°C</span>`;
+    }
+  }
+  
+  // Remove high temperature highlights
+  function removeHighTemperatureHighlight() {
+    const tempCard = document.querySelector('.sensor-card:nth-child(1)');
+    const tempValue = document.getElementById('temp-value');
+    
+    if (tempCard && tempValue) {
+      tempCard.classList.remove('temp-card-warning');
+      tempValue.classList.remove('temp-value-high');
+      tempValue.innerHTML = tempValue.textContent.replace('°C', '') + '°C';
+    }
+  }
+  
+  // Add alert badge to sensor card
+  function addAlertBadge() {
+    const tempCard = document.querySelector('.sensor-card:nth-child(1)');
+    if (tempCard && !tempCard.querySelector('.alert-badge')) {
+      const badge = document.createElement('div');
+      badge.className = 'alert-badge';
+      badge.textContent = '!';
+      badge.title = 'High temperature alert active';
+      tempCard.style.position = 'relative';
+      tempCard.appendChild(badge);
+    }
+  }
+  
+  // Remove alert badge
+  function removeAlertBadge() {
+    const badge = document.querySelector('.alert-badge');
+    if (badge) {
+      badge.remove();
+    }
+  }
+  
+  // Modify your existing fetchSensorData function to include alert checking
+  const originalFetchSensorData = fetchSensorData;
+  
+  async function fetchSensorData() {
+    try {
+      const response = await fetch('/get-sensor-data');
+      const data = await response.json();
+      
+      if (data.temperature !== null) {
+        const temp = data.temperature.toFixed(1);
+        document.getElementById('temp-value').textContent = temp;
+        document.getElementById('stat-temp').textContent = temp + '°C';
+        document.getElementById('temp-status').className = 'sensor-status connected';
+        document.getElementById('temp-status').innerHTML = '<span class="status-dot dot-success"></span>Connected';
+        
+        document.getElementById('humid-value').textContent = data.humidity.toFixed(1);
+        document.getElementById('stat-humid').textContent = data.humidity.toFixed(1) + '%';
+        document.getElementById('humid-status').className = 'sensor-status connected';
+        document.getElementById('humid-status').innerHTML = '<span class="status-dot dot-success"></span>Connected';
+        
+        // Check for temperature alerts
+        checkTemperatureAlert(data.temperature);
+        
+        // Update temperature chart data
+        updateTempChart(data.temperature);
+      }
+    } catch (err) {
+      console.error('Error fetching sensor data:', err);
+    }
+  }
+  
+  // Function to update temperature chart
+  function updateTempChart(currentTemp) {
+    const now = new Date();
+    const timeLabel = now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+    
+    // Get chart data
+    const tempChart = Chart.getChart('temp-chart');
+    if (tempChart) {
+      const labels = tempChart.data.labels;
+      const data = tempChart.data.datasets[0].data;
+      
+      // Add new data point
+      labels.push(timeLabel);
+      data.push(currentTemp);
+      
+      // Keep only last 12 data points
+      if (labels.length > 12) {
+        labels.shift();
+        data.shift();
+      }
+      
+      // Update chart stats
+      updateTempStats(data);
+      
+      // Update the chart
+      tempChart.update();
+    }
+  }
+  
+  // Function to update temperature statistics
+  function updateTempStats(tempData) {
+    if (tempData.length > 0) {
+      const avg = tempData.reduce((a, b) => a + b, 0) / tempData.length;
+      const min = Math.min(...tempData);
+      const max = Math.max(...tempData);
+      
+      document.getElementById('temp-avg').textContent = avg.toFixed(1) + '°C';
+      document.getElementById('temp-min').textContent = min.toFixed(1) + '°C';
+      document.getElementById('temp-max').textContent = max.toFixed(1) + '°C';
+      
+      // Add warning to max if it's 25°C or higher
+      if (max >= 25) {
+        document.getElementById('temp-max').innerHTML = 
+          `<span style="color:#ff5252;font-weight:bold;">${max.toFixed(1)}°C ⚠</span>`;
+      }
+    }
+  }
+  
+  // Initialize on page load
+  window.addEventListener('load', () => {
+    // Check if there's already high temperature on load
+    const currentTempElement = document.getElementById('temp-value');
+    if (currentTempElement && currentTempElement.textContent !== '--') {
+      const currentTemp = parseFloat(currentTempElement.textContent);
+      if (!isNaN(currentTemp)) {
+        checkTemperatureAlert(currentTemp);
+      }
+    }
+  });
+
+  // ADD THIS FUNCTION to save detection data
+function saveDetectionData(data) {
+  const today = new Date().toISOString().split('T')[0];
+  const daysSincePlanting = getDaysSincePlanting();
+  
+  // 1. Save current counts
+  localStorage.setItem('lastDetection', JSON.stringify({
+    ready: data.ready_count,
+    notReady: data.not_ready_count,
+    total: data.total_count,
+    timestamp: new Date().toISOString()
+  }));
+  
+  // 2. Update growth history
+  let growthHistory = JSON.parse(localStorage.getItem('growthHistory') || '[]');
+  
+  const todayEntry = {
+    date: today,
+    day: daysSincePlanting,
+    ready: data.ready_count,
+    notReady: data.not_ready_count,
+    total: data.total_count,
+    timestamp: new Date().toISOString()
+  };
+  
+  // Check if we already have an entry for today
+  const existingIndex = growthHistory.findIndex(entry => entry.date === today);
+  
+  if (existingIndex === -1) {
+    growthHistory.push(todayEntry);
+  } else {
+    // Update today's entry
+    growthHistory[existingIndex] = todayEntry;
+  }
+  
+  // Keep only last 45 days
+  if (growthHistory.length > 45) {
+    growthHistory = growthHistory.slice(-45);
+  }
+  
+  localStorage.setItem('growthHistory', JSON.stringify(growthHistory));
+  
+  // 3. Update analytics data
+  if (typeof analyticsData !== 'undefined') {
+    analyticsData.readyCount = data.ready_count;
+    analyticsData.notReadyCount = data.not_ready_count;
+    analyticsData.totalDetections = data.total_count;
+    analyticsData.growthHistory = growthHistory;
+    
+    // Save analytics data
+    localStorage.setItem('analyticsData', JSON.stringify(analyticsData));
+  }
+}
+
+function updateDistributionChart() {
+  const total = analyticsData.readyCount + analyticsData.notReadyCount;
+  
+  if (total === 0) {
+    growthDistributionChart.data.datasets[0].data = [0, 0, 0, 0];
+  } else {
+    // Simulate distribution based on actual data
+    const readyPercent = analyticsData.readyCount;
+    const vegetativePercent = Math.round(analyticsData.notReadyCount * 0.6);
+    const seedlingPercent = Math.round(analyticsData.notReadyCount * 0.3);
+    const notDetectedPercent = Math.round(analyticsData.notReadyCount * 0.1);
+    
+    growthDistributionChart.data.datasets[0].data = [
+      readyPercent,
+      vegetativePercent,
+      seedlingPercent,
+      notDetectedPercent
+    ];
+  }
+  
+  growthDistributionChart.update();
+}
+  </script>
+
+</body>
+</html>

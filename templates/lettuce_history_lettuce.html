@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>History - Cabuyew Hydroponics</title>
+  <link rel="stylesheet" href="./styles.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+</head>
+<body>
+
+<button class="mobile-toggle" onclick="toggleMobileSidebar()">
+<i class="fas fa-bars"></i>
+</button>
+
+  <!-- Sidebar -->
+<div class="sidebar">
+  <button class="toggle-btn" onclick="toggleSidebar()">
+    <i class="fas fa-chevron-left"></i>
+  </button>
+  
+  <div class="logo-section">
+    <img src="./lettlogo.jpg" alt="Logo">
+    <div class="logo-title">CABUYEW</div>
+    <div class="logo-subtitle">HYDROPONICS</div>
+  </div>
+
+  <div class="nav-item" data-href="/" data-tooltip="Dashboard">
+    <i class="nav-icon fas fa-tachometer-alt"></i>
+    <span>Dashboard</span>
+  </div>
+  <div class="nav-item" data-href="/history" data-tooltip="History">
+    <i class="nav-icon fas fa-history"></i>
+    <span>History</span>
+  </div>
+  <div class="nav-item" data-href="/test" data-tooltip="Test Readiness">
+    <i class="nav-icon fas fa-vial"></i>
+    <span>Test Readiness</span>
+  </div>
+  <div class="nav-item" data-href="/about" data-tooltip="About Lettuce">
+    <i class="nav-icon fas fa-leaf"></i>
+    <span>About Lettuce</span>
+  </div>
+</div>
+
+  <!-- Main Content -->
+  <div class="main-wrapper">
+    
+    <!-- Header -->
+    <div class="page-header">
+      <div class="page-title-section">
+        <h1 class="page-title">Activity History</h1>
+        <div class="breadcrumb">Dashboard › History › Activity Logs</div>
+      </div>
+      <div class="header-actions">
+        <div class="dropdown">
+          <button class="btn btn-secondary" onclick="toggleExport()">Export</button>
+          <div class="dropdown-content" id="exportDropdown">
+            <div class="dropdown-item" onclick="exportCSV()">Export as CSV</div>
+            <div class="dropdown-item" onclick="exportJSON()">Export as JSON</div>
+            <div class="dropdown-item" onclick="printLogs()">Print Report</div>
+          </div>
+        </div>
+        <button class="btn btn-danger" onclick="clearAllLogs()">Clear All</button>
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-value" id="total-logs">0</div>
+        <div class="stat-label">Total Events</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="fan-activations">0</div>
+        <div class="stat-label">Fan Activations</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="mist-activations">0</div>
+        <div class="stat-label">Pump Activations</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="led-activations">0</div>
+        <div class="stat-label">Light Activations</div>
+      </div>
+    </div>
+
+    <!-- Logs Table -->
+    <div class="card">
+      <div class="card-header">
+        <h2 class="card-title">Recent Activity</h2>
+        <div class="filter-buttons">
+          <button class="filter-btn active" onclick="filterLogs('all')">All</button>
+          <button class="filter-btn" onclick="filterLogs('Fan')">Fan</button>
+          <button class="filter-btn" onclick="filterLogs('Pump')">Pump</button>
+          <button class="filter-btn" onclick="filterLogs('Light')">Light</button>
+        </div>
+      </div>
+      <div class="card-body">
+        
+        <div class="loading" id="loading">
+          <div class="loading-spinner"></div>
+          Loading activity logs...
+        </div>
+
+        <div class="table-responsive" id="table-container" style="display: none;">
+          <table class="log-table">
+            <thead>
+              <tr>
+                <th>Timestamp</th>
+                <th>Device</th>
+                <th>Action</th>
+                <th>Reason</th>
+                <th>Temperature</th>
+                <th>Humidity</th>
+                <th>Battery</th>
+              </tr>
+            </thead>
+            <tbody id="logs-list">
+            </tbody>
+          </table>
+        </div>
+
+        <div class="no-logs" id="no-logs" style="display: none;">
+          <div class="no-logs-title">No Activity Logs</div>
+          <div class="no-logs-text">Device activity will appear here once the system starts logging events</div>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    let allLogs = [];
+    let currentFilter = 'all';
+
+    // Navigation
+    document.querySelectorAll('.nav-item').forEach(item => {
+      item.addEventListener('click', function() {
+        const href = this.getAttribute('data-href');
+        if (href) window.location.href = href;
+      });
+    });
+
+    // Fetch logs on load
+    window.addEventListener('load', () => {
+      fetchLogs();
+      setInterval(fetchLogs, 5000);
+    });
+
+    async function fetchLogs() {
+      try {
+        const response = await fetch('/get-activity-logs?limit=100');
+        const data = await response.json();
+        
+        allLogs = data.logs || [];
+        updateStats();
+        displayLogs();
+        
+        document.getElementById('loading').style.display = 'none';
+        
+        if (allLogs.length === 0) {
+          document.getElementById('table-container').style.display = 'none';
+          document.getElementById('no-logs').style.display = 'block';
+        } else {
+          document.getElementById('table-container').style.display = 'block';
+          document.getElementById('no-logs').style.display = 'none';
+        }
+      } catch (error) {
+        console.error('Error fetching logs:', error);
+        document.getElementById('loading').innerHTML = '<div class="no-logs-title">Connection Error</div><div class="no-logs-text">Failed to load logs. Make sure Flask server is running.</div>';
+      }
+    }
+
+    function updateStats() {
+      const fanCount = allLogs.filter(log => log.device === 'Fan' && log.action === 'ON').length;
+      const pumpCount = allLogs.filter(log => log.device === 'Pump' && log.action === 'ON').length;
+      const lightCount = allLogs.filter(log => log.device === 'Light' && log.action === 'ON').length;
+
+      document.getElementById('total-logs').textContent = allLogs.length;
+      document.getElementById('fan-activations').textContent = fanCount;
+      document.getElementById('mist-activations').textContent = pumpCount;
+      document.getElementById('led-activations').textContent = lightCount;
+    }
+
+    function displayLogs() {
+      const tbody = document.getElementById('logs-list');
+      tbody.innerHTML = '';
+
+      const filteredLogs = currentFilter === 'all' 
+        ? allLogs 
+        : allLogs.filter(log => log.device === currentFilter);
+
+      filteredLogs.reverse().forEach(log => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td class="log-time">${log.timestamp || '--'}</td>
+          <td class="log-device">${log.device}</td>
+          <td><span class="log-action ${log.action.toLowerCase()}">${log.action}</span></td>
+          <td class="log-reason">${log.reason || '--'}</td>
+          <td class="log-data">${log.temperature ? log.temperature.toFixed(1) + '°C' : '--'}</td>
+          <td class="log-data">${log.humidity ? log.humidity.toFixed(1) + '%' : '--'}</td>
+          <td class="log-data">${log.battery_voltage !== 'N/A' ? log.battery_voltage.toFixed(2) + 'V' : '--'}</td>
+        `;
+        tbody.appendChild(row);
+      });
+    }
+
+    function filterLogs(type) {
+      currentFilter = type;
+      document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
+      event.target.classList.add('active');
+      displayLogs();
+    }
+
+    function toggleExport() {
+      document.getElementById('exportDropdown').classList.toggle('show');
+    }
+
+    window.onclick = function(event) {
+      if (!event.target.matches('.btn')) {
+        document.querySelectorAll('.dropdown-content').forEach(d => d.classList.remove('show'));
+      }
+    }
+
+    function exportCSV() {
+      const csv = ['Timestamp,Device,Action,Reason,Temperature,Humidity,Battery'];
+      allLogs.forEach(log => {
+        csv.push([
+          log.timestamp,
+          log.device,
+          log.action,
+          log.reason || '',
+          log.temperature || '',
+          log.humidity || '',
+          log.battery_voltage || ''
+        ].join(','));
+      });
+      
+      const blob = new Blob([csv.join('\n')], { type: 'text/csv' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `activity_logs_${new Date().toISOString().split('T')[0]}.csv`;
+      a.click();
+      toggleExport();
+    }
+
+    function exportJSON() {
+      const json = JSON.stringify(allLogs, null, 2);
+      const blob = new Blob([json], { type: 'application/json' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `activity_logs_${new Date().toISOString().split('T')[0]}.json`;
+      a.click();
+      toggleExport();
+    }
+
+    function printLogs() {
+      window.print();
+      toggleExport();
+    }
+
+    async function clearAllLogs() {
+      if (!confirm('Are you sure you want to clear all activity logs? This cannot be undone.')) {
+        return;
+      }
+
+      try {
+        const response = await fetch('/clear-logs', { method: 'POST' });
+        if (response.ok) {
+          alert('All logs cleared successfully');
+          fetchLogs();
+        } else {
+          alert('Failed to clear logs');
+        }
+      } catch (error) {
+        alert('Error: ' + error.message);
+      }
+    }
+
+    // Sidebar Toggle Function
+function toggleSidebar() {
+  const sidebar = document.querySelector('.sidebar');
+  sidebar.classList.toggle('collapsed');
+  
+  // Save preference to localStorage
+  const isCollapsed = sidebar.classList.contains('collapsed');
+  localStorage.setItem('sidebarCollapsed', isCollapsed);
+}
+
+function toggleMobileSidebar() {
+  const sidebar = document.querySelector('.sidebar');
+  sidebar.classList.toggle('mobile-open');
+}
+
+// Check saved preference on page load
+window.addEventListener('load', () => {
+  const isCollapsed = localStorage.getItem('sidebarCollapsed') === 'true';
+  const sidebar = document.querySelector('.sidebar');
+  
+  if (isCollapsed) {
+    sidebar.classList.add('collapsed');
+  }
+  
+  // Mobile detection
+  const mobileToggle = document.querySelector('.mobile-toggle');
+  if (window.innerWidth <= 768) {
+    mobileToggle.style.display = 'flex';
+  } else {
+    mobileToggle.style.display = 'none';
+  }
+  
+  // Update on resize
+  window.addEventListener('resize', () => {
+    if (window.innerWidth <= 768) {
+      mobileToggle.style.display = 'flex';
+      // Close sidebar on mobile by default
+      sidebar.classList.remove('collapsed');
+    } else {
+      mobileToggle.style.display = 'none';
+      sidebar.classList.remove('mobile-open');
+    }
+  });
+});
+
+
+  </script>
+
+</body>
+</html>
