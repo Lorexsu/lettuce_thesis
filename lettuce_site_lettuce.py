@@ -314,6 +314,9 @@ def serve_styles():
 # EXISTING ENDPOINTS (unchanged)
 @app.route('/classify', methods=['POST'])
 def classify():
+    if model is None:
+        return jsonify({'detected': False, 'error': 'Model not loaded'}), 503
+    
     try:
         data = request.json
         image_data = data['image'].split(',')[1] if ',' in data['image'] else data['image']
@@ -806,4 +809,5 @@ if __name__ == '__main__':
     print("="*50 + "\n")
 
     socketio.run(app, debug=False, host='0.0.0.0', port=5000, allow_unsafe_werkzeug=True)
+
 
