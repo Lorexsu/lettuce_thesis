@@ -42,7 +42,7 @@ try:
     print(f"✅ Model 1 (YOLO) loaded from {model_path}")
 except Exception as e:
     print(f"❌ Error loading Model 1: {e}")
-    model = YOLO("yolo12s.pt")
+    model = None
 
 
 # MODEL 2: Load Nutrient Stress Classifier
@@ -806,3 +806,4 @@ if __name__ == '__main__':
     print("="*50 + "\n")
 
     socketio.run(app, debug=False, host='0.0.0.0', port=5000, allow_unsafe_werkzeug=True)
+
