@@ -197,14 +197,27 @@
         const base64Image = e.target.result;
 
         // Call classify endpoint (YOLO with bounding boxes)
-        fetch('/classify', {
+        fetch('/classify', { 
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({ image: base64Image })
         })
-        .then(response => response.json())
+        .then(response => {
+          // Check if response is OK
+          if (!response.ok) {
+            throw new Error(`Server error: ${response.status}`);
+          }
+          
+          // Check if response is JSON
+          const contentType = response.headers.get('content-type');
+          if (!contentType || !contentType.includes('application/json')) {
+            throw new Error('Server returned non-JSON response. Model may not be loaded.');
+          }
+          
+          return response.json();
+        })
         .then(data => {
           console.log('Classification result:', data);
           
@@ -218,7 +231,7 @@
         })
         .catch(error => {
           console.error('Error:', error);
-          alert('Failed to analyze image. Please try again.');
+          alert('Model not available on cloud. This feature requires running locally or upgrading hosting.');
           resetView();
         });
       };
@@ -389,4 +402,5 @@
 
   </script>
   </body>
+
 </html>
