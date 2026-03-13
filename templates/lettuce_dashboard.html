@@ -22,9 +22,13 @@
   </button>
   
   <div class="logo-section">
-    <img src="./lettlogo.jpg" alt="Logo">
-    <div class="logo-title">CABUYEW</div>
-    <div class="logo-subtitle">HYDROPONICS</div>
+    <div class="logo-wrapper">
+      <img src="./lettlogo.jpg" alt="CABUYEW HYDROPONICS" class="logo-image">
+      <div class="logo-text">
+        <div class="logo-title">CABUYEW</div>
+        <div class="logo-subtitle">HYDROPONICS</div>
+      </div>
+    </div>
   </div>
 
   <div class="nav-item" data-href="/" data-tooltip="Dashboard">
@@ -221,11 +225,6 @@
       <div class="card">
         <div class="card-header">
           <h2 class="card-title">24-Hour Temperature</h2>
-          <div class="card-tabs">
-            <button class="tab-btn active">Daily</button>
-            <button class="tab-btn">Weekly</button>
-            <button class="tab-btn">Monthly</button>
-          </div>
         </div>
         <div class="card-body">
           <canvas id="temp-chart" style="max-height: 220px;"></canvas>
@@ -249,11 +248,6 @@
       <div class="card">
         <div class="card-header">
           <h2 class="card-title">24-Hour Humidity</h2>
-          <div class="card-tabs">
-            <button class="tab-btn active">Daily</button>
-            <button class="tab-btn">Weekly</button>
-            <button class="tab-btn">Monthly</button>
-          </div>
         </div>
         <div class="card-body">
           <canvas id="humid-chart" style="max-height: 220px;"></canvas>
@@ -1652,15 +1646,16 @@ window.addEventListener('load', () => {
 
   // Reset Analytics
   function resetAnalytics() {
-    if (!confirm('Are you sure you want to reset all analytics data? This cannot be undone.')) {
+    if (!confirm('Are you sure you want to reset all analytics data? This will clear:\n\n• Growth history\n• Detection counts\n• Saved images\n• All analytics files\n\nThis cannot be undone.')) {
       return;
     }
     
     // Clear localStorage
     localStorage.removeItem('analyticsData');
     localStorage.removeItem('plantingDateTime');
+    localStorage.removeItem('dailyStats');
     
-    // Reset analytics data
+    // Reset analytics data locally
     analyticsData = {
       readyCount: 0,
       notReadyCount: 0,
@@ -1669,15 +1664,30 @@ window.addEventListener('load', () => {
       environmentData: []
     };
     
-    // Reset planting date
-    document.getElementById('plantingDate').value = '';
-    document.getElementById('plantingTime').value = '';
-    document.getElementById('daysGrowing').textContent = '--';
-    
-    // Update all displays
-    updateAnalytics(null);
-    
-    showNotification('Analytics data has been reset!', 'success');
+    // Send reset request to server
+    fetch('/reset-analytics', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'}
+    })
+    .then(res => res.json())
+    .then(data => {
+      console.log('Server reset:', data);
+      showNotification('✅ All analytics data has been reset!', 'success');
+      
+      // Force page reload after 1 second to clear everything
+      setTimeout(() => {
+        window.location.reload();
+      }, 1000);
+    })
+    .catch(err => {
+      console.error('Server reset failed:', err);
+      showNotification('⚠️ Local data cleared, server reset failed', 'warning');
+      
+      // Still reload to clear local data
+      setTimeout(() => {
+        window.location.reload();
+      }, 1000);
+    });
   }
 
   // Notification function
@@ -1885,7 +1895,50 @@ window.addEventListener('load', () => {
       if (data.humidity !== undefined) {
         document.getElementById('humidValueLive').textContent = data.humidity.toFixed(1) + '%';
       }
+      
+      // Auto-save annotated image if detections exist
+      if (data.detections && data.detections.length > 0) {
+        saveAnnotatedDetectionImage(data);
+      }
     });
+    
+    // Function to save annotated detection images
+    function saveAnnotatedDetectionImage(detectionData) {
+  try {
+    // Get original frame (before annotations)
+    const originalFrame = detectionData.original_frame || detectionData.frame;
+    
+    fetch('/save-detection-image', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        original_image: originalFrame,  // Original for training
+        annotated_image: detectionData.frame,  // Annotated for viewing
+        timestamp: new Date().toISOString(),
+        detections: detectionData.detections || [],
+        ready_count: detectionData.ready_count || 0,
+        not_ready_count: detectionData.not_ready_count || 0,
+        width: 640,  // Your stream resolution
+        height: 480
+      })
+    })
+    .then(res => res.json())
+    .then(data => {
+      if (data.status === 'success') {
+        console.log(` Saved training data: ${data.filename}`);
+        console.log(`    Original: ${data.paths.original}`);
+        console.log(`    Annotated: ${data.paths.annotated}`);
+        console.log(`    Labels: ${data.paths.labels}`);
+        console.log(`    ${data.detections} detections`);
+      }
+    })
+    .catch(err => {
+      console.error('Failed to save training data:', err);
+    });
+  } catch (error) {
+    console.error('Error saving training data:', error);
+  }
+}
 
     function startStream() {
       socket.emit('start_live_stream');
@@ -2342,6 +2395,27 @@ function updateDistributionChart() {
   
   growthDistributionChart.update();
 }
+
+// Fetch sensor history from database
+async function loadDatabaseHistory() {
+  try {
+    // Get 24 hours of sensor data
+    const response = await fetch('/api/sensor-history?hours=24');
+    const data = await response.json();
+    
+    console.log('📊 Database has', data.length, 'sensor readings');
+    
+    // Update charts with database data
+    // (Use this data to populate your temperature/humidity charts)
+    
+  } catch (error) {
+    console.error('Error loading from database:', error);
+  }
+}
+
+// Call when page loads
+document.addEventListener('DOMContentLoaded', loadDatabaseHistory);
+
   </script>
 
 </body>

@@ -20,9 +20,13 @@
   </button>
   
   <div class="logo-section">
-    <img src="./lettlogo.jpg" alt="Logo">
-    <div class="logo-title">CABUYEW</div>
-    <div class="logo-subtitle">HYDROPONICS</div>
+    <div class="logo-wrapper">
+      <img src="./lettlogo.jpg" alt="CABUYEW HYDROPONICS" class="logo-image">
+      <div class="logo-text">
+        <div class="logo-title">CABUYEW</div>
+        <div class="logo-subtitle">HYDROPONICS</div>
+      </div>
+    </div>
   </div>
 
   <div class="nav-item" data-href="/" data-tooltip="Dashboard">
@@ -197,27 +201,14 @@
         const base64Image = e.target.result;
 
         // Call classify endpoint (YOLO with bounding boxes)
-        fetch('/classify', { 
+        fetch('/classify', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({ image: base64Image })
         })
-        .then(response => {
-          // Check if response is OK
-          if (!response.ok) {
-            throw new Error(`Server error: ${response.status}`);
-          }
-          
-          // Check if response is JSON
-          const contentType = response.headers.get('content-type');
-          if (!contentType || !contentType.includes('application/json')) {
-            throw new Error('Server returned non-JSON response. Model may not be loaded.');
-          }
-          
-          return response.json();
-        })
+        .then(response => response.json())
         .then(data => {
           console.log('Classification result:', data);
           
@@ -231,7 +222,7 @@
         })
         .catch(error => {
           console.error('Error:', error);
-          alert('Model not available on cloud. This feature requires running locally or upgrading hosting.');
+          alert('Failed to analyze image. Please try again.');
           resetView();
         });
       };
@@ -239,47 +230,98 @@
     }
 
     async function processDetections(base64Image, yoloData) {
-      // For simplicity, run nutrient classification on the whole image
-      // In production, you'd crop each detected lettuce and classify individually
-      
       try {
         const nutrientResponse = await fetch('/classify-nutrient', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ image: base64Image })
         });
         
         const nutrientData = await nutrientResponse.json();
-        console.log('Nutrient result:', nutrientData);
 
-        // Add nutrient data to detections
         const enrichedDetections = yoloData.all_detections.map(det => ({
           ...det,
           health_status: nutrientData.nutrient_status,
           health_confidence: nutrientData.confidence
         }));
 
-        displayResults({
+        const resultsData = {
           annotated_image: yoloData.annotated_image,
+          original_image: base64Image,
           total_count: yoloData.count,
           ready_count: yoloData.ready_count,
           not_ready_count: yoloData.not_ready_count,
           detections: enrichedDetections
-        });
+        };
+
+        displayResults(resultsData);
+        saveTrainingData(resultsData);
 
       } catch (error) {
         console.error('Nutrient analysis error:', error);
-        // Display without nutrient data if it fails
-        displayResults({
+        
+        const resultsData = {
           annotated_image: yoloData.annotated_image,
+          original_image: base64Image,
           total_count: yoloData.count,
           ready_count: yoloData.ready_count,
           not_ready_count: yoloData.not_ready_count,
           detections: yoloData.all_detections
-        });
+        };
+        
+        displayResults(resultsData);
+        saveTrainingData(resultsData);
       }
+    }
+    
+    function saveTrainingData(resultsData) {
+      console.log('💾 Saving training data...');
+      
+      fetch('/save-detection-image', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          original_image: resultsData.original_image,
+          annotated_image: resultsData.annotated_image,
+          timestamp: new Date().toISOString(),
+          detections: resultsData.detections || [],
+          ready_count: resultsData.ready_count || 0,
+          not_ready_count: resultsData.not_ready_count || 0,
+          width: 640,
+          height: 480
+        })
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.status === 'success') {
+          console.log(`✅ Training data saved: ${data.filename}`);
+          console.log(`   📸 Original: ${data.paths.original}`);
+          console.log(`   🎨 Annotated: ${data.paths.annotated}`);
+          console.log(`   🏷️ Labels: ${data.paths.labels}`);
+          showSaveNotif(`✅ Saved: ${data.filename} (${data.detections} detections)`);
+        }
+      })
+      .catch(err => {
+        console.error('❌ Failed:', err);
+        showSaveNotif('⚠️ Failed to save', 'error');
+      });
+    }
+    
+    function showSaveNotif(message, type = 'success') {
+      const notif = document.createElement('div');
+      notif.style.cssText = `
+        position: fixed; bottom: 20px; right: 20px;
+        background: ${type === 'success' ? '#4caf50' : '#f44336'};
+        color: white; padding: 12px 20px; border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3); z-index: 9999;
+        font-size: 14px; animation: slideIn 0.3s ease;
+      `;
+      notif.textContent = message;
+      document.body.appendChild(notif);
+      setTimeout(() => {
+        notif.style.animation = 'slideOut 0.3s ease';
+        setTimeout(() => notif.remove(), 300);
+      }, 3000);
     }
 
     function displayResults(data) {
@@ -402,5 +444,4 @@
 
   </script>
   </body>
-
 </html>
