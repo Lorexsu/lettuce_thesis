@@ -37,11 +37,28 @@
       text-align: center;
     }
 
+    /* Collapsed State */
+    .sidebar.collapsed .logo-wrapper {
+      justify-content: center;
+      padding: 0;
+    }
+
+    .sidebar.collapsed .logo-image {
+      width: 40px;
+      height: 40px;
+      margin: 0;
+    }
+
+
     .sidebar.collapsed .logo-section img {
       width: 40px;
       height: 40px;
       margin: 0 auto 0.5rem;
       display: block;
+    }
+
+    .sidebar.collapsed .logo-text {
+      display: none;
     }
 
     .sidebar.collapsed .logo-title,
@@ -50,6 +67,21 @@
       opacity: 0;
       height: 0;
       overflow: hidden;
+    }
+
+        /* Hover Expand Effect - Logo */
+    .sidebar.collapsed:hover .logo-wrapper {
+      justify-content: flex-start;
+    }
+
+    .sidebar.collapsed:hover .logo-image {
+      width: 48px;
+      height: 48px;
+    }
+
+    .sidebar.collapsed:hover .logo-text {
+      display: block;
+      animation: fadeIn 0.3s ease;
     }
 
     /* Navigation Items - Collapsed State */
@@ -153,25 +185,29 @@
     /* Toggle Button - FIXED POSITION */
 .toggle-btn {
   position: absolute;
-  top: 15%;
-  right: 10px;
-  transform: translateY(-50%);
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  top: 400px;
+  right: 15px;
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.25);
   color: white;
-  width: 26px;
-  height: 26px;
-  border-radius: 4px;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   font-size: 0.8rem;
   z-index: 1002;
+  backdrop-filter: blur(4px);
+  transition: all 0.2s ease;
 }
+
 .toggle-btn:hover {
   background: #2c5f2d;
+  border-color: #4caf50;
   transform: scale(1.1);
+  box-shadow: 0 2px 8px rgba(76, 175, 80, 0.3);
 }
 
 .toggle-btn i {
@@ -753,7 +789,16 @@
 }
 
 
-
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
 
 /*history_lettuce.html*/
 /* Main Content */
@@ -1689,6 +1734,39 @@ body {
       margin-bottom: 2rem;
     }
 
+    .logo-wrapper {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      position: relative;
+    }
+
+    .logo-image {
+      width: 48px;
+      height: 48px;
+      border-radius: 12px;
+      object-fit: cover;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+      transition: transform 0.3s ease;
+    }
+
+    .logo-image:hover {
+      transform: scale(1.05);
+    }
+
+    .logo-text {
+      flex: 1;
+    }
+
+    .logo-title {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: white;
+      margin-bottom: 2px;
+      letter-spacing: 0.5px;
+      text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    }
+
     .logo-section img {
       width: 50px;
       height: 50px;
@@ -1703,9 +1781,12 @@ body {
     }
 
     .logo-subtitle {
-      font-size: 0.75rem;
-      color: rgba(255,255,255,0.7);
-      letter-spacing: 1px;
+      font-size: 0.7rem;
+      color: #a8e6b0;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      font-weight: 500;
+      opacity: 0.9;
     }
 
     .nav-item {
@@ -2686,7 +2767,14 @@ body {
       }
     }
 
-
+    @keyframes slideIn {
+      from { transform: translateX(400px); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+    @keyframes slideOut {
+      from { transform: translateX(0); opacity: 1; }
+      to { transform: translateX(400px); opacity: 0; }
+    }
 
 /*lettuce_live.html*/
 
