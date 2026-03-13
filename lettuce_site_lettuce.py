@@ -45,7 +45,7 @@ ESP32_IP = "10.172.94.149"
 ESP32_SENSOR_URL = f"http://{ESP32_IP}:5000/get-sensor-data"    
 
 #Load YOLO (Readiness Detection)
-model_path = "C:/Users/Rolex Jr/OneDrive/Desktop/lettuce_model_thesis/runs/detect/lettuce_yolo12_new_trained_new2/weights/best.pt"
+model_path = "/home/ubuntu/lettuce_thesis/best.pt"
 
 try:
     model = YOLO(model_path)
@@ -993,3 +993,4 @@ if __name__ == '__main__':
     print("="*50 + "\n")
 
     socketio.run(app, debug=False, host='0.0.0.0', port=5000, allow_unsafe_werkzeug=True)
+
