@@ -17,6 +17,16 @@ import torch
 import torch.nn as nn
 from torchvision import transforms
 import timm
+from database import (
+    save_sensor_reading,
+    save_detection,
+    save_relay_event,
+    get_sensor_history,
+    get_detection_summary,
+    get_relay_history,
+    update_daily_summary
+)
+
 
 app = Flask(__name__, static_folder='static', template_folder='templates')
 app.config['SECRET_KEY'] = 'your-secret-key-change-this'
@@ -25,17 +35,17 @@ socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
 
 
 # Tapo Camera Configuration
-TAPO_IP = "192.168.1.49"  
+TAPO_IP = "192.168.1.2"  
 TAPO_USER = "topac200c"
 TAPO_PASS = "c200ctopa"  
 STREAM_URL = f"rtsp://{TAPO_USER}:{TAPO_PASS}@{TAPO_IP}:554/stream1"
 
 # ESP32 Configuration
-ESP32_IP = "10.0.0.42"
+ESP32_IP = "10.172.94.149"
 ESP32_SENSOR_URL = f"http://{ESP32_IP}:5000/get-sensor-data"    
 
 #Load YOLO (Readiness Detection)
-model_path = "best.pt"
+model_path = "C:/Users/Rolex Jr/OneDrive/Desktop/lettuce_model_thesis/runs/detect/lettuce_yolo12_new_trained_new2/weights/best.pt"
 
 try:
     model = YOLO(model_path)
@@ -314,9 +324,6 @@ def serve_styles():
 # EXISTING ENDPOINTS (unchanged)
 @app.route('/classify', methods=['POST'])
 def classify():
-    if model is None:
-        return jsonify({'detected': False, 'error': 'Model not loaded'}), 503
-    
     try:
         data = request.json
         image_data = data['image'].split(',')[1] if ',' in data['image'] else data['image']
@@ -429,6 +436,11 @@ def receive_sensor_data():
     try:
         data = request.json
         
+        save_sensor_reading(
+            temperature=data.get('temperature'),
+            humidity=data.get('humidity')
+        )
+        
         # Update current sensor data
         sensor_data['temperature'] = data.get('temperature')
         sensor_data['humidity'] = data.get('humidity')
@@ -474,6 +486,8 @@ def receive_sensor_data():
     except Exception as e:
         print(f"Error receiving sensor data: {e}")
         return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
 
 @app.route('/get-sensor-data', methods=['GET'])
 def get_sensor_data():
@@ -656,6 +670,16 @@ def set_relay():
             relay_states[device] = state
             temp = sensor_data.get('temperature')
             humid = sensor_data.get('humidity')
+
+            # Save to database
+            save_relay_event(
+                relay_name=device,
+                action='ON' if state else 'OFF',
+                trigger_type='manual',
+                temperature=temp,
+                humidity=humid
+            )
+
             log_activity(device.capitalize(), 'ON' if state else 'OFF', 
                         'Manual override', temp, humid)
             print(f"🔌 {device.upper()} {'ON' if state else 'OFF'} (Manual)")
@@ -727,44 +751,141 @@ def get_detection_history():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@app.route('/save-detection-data', methods=['POST'])
-def save_detection_data():
-    """Save detection data with temperature and humidity"""
+@app.route('/save-detection-image', methods=['POST'])
+def save_detection_image():
+    """Save images and labels for YOLO training"""
     try:
         data = request.json
         
-        # Add current sensor readings to analytics data
-        if 'analytics' in data:
-            temp = sensor_data.get('temperature')
-            humid = sensor_data.get('humidity')
+        # Extract images
+        annotated_b64 = data['annotated_image'].split(',')[1] if ',' in data['annotated_image'] else data['annotated_image']
+        original_b64 = data.get('original_image', annotated_b64).split(',')[1] if ',' in data.get('original_image', annotated_b64) else data.get('original_image', annotated_b64)
+        
+        # Create directories
+        os.makedirs('training_data/images', exist_ok=True)
+        os.makedirs('training_data/labels', exist_ok=True)
+        os.makedirs('training_data/annotated', exist_ok=True)
+        
+        # Generate filename with timestamp
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        filename = f'lettuce_{timestamp}'
+        
+        # Save original image (for training)
+        original_path = os.path.join('training_data/images', f'{filename}.jpg')
+        with open(original_path, 'wb') as f:
+            f.write(base64.b64decode(original_b64))
+        
+        # Save annotated image (for viewing)
+        annotated_path = os.path.join('training_data/annotated', f'{filename}.jpg')
+        with open(annotated_path, 'wb') as f:
+            f.write(base64.b64decode(annotated_b64))
+        
+        # Save YOLO label file
+        detections = data.get('detections', [])
+        label_path = os.path.join('training_data/labels', f'{filename}.txt') 
+
+        # Get image dimensions (assume 640x480 from your stream)
+        img_width = data.get('width', 640)
+        img_height = data.get('height', 480)
+        
+        
+        with open(label_path, 'w') as f:
+            for det in detections:
+                # Convert to YOLO format: class x_center y_center width height (normalized)
+                bbox = det['bbox']
+                x1, y1, x2, y2 = bbox['x1'], bbox['y1'], bbox['x2'], bbox['y2']
+                
+                # Calculate center and dimensions
+                x_center = ((x1 + x2) / 2) / img_width
+                y_center = ((y1 + y2) / 2) / img_height
+                width = (x2 - x1) / img_width
+                height = (y2 - y1) / img_height
+                
+                # Determine class ID
+                label = det['label'].lower()
+                if 'ready' in label and 'not' not in label:
+                    class_id = 0  # Not Ready 
+                elif 'not' in label and 'ready' in label:
+                    class_id = 1  # Ready to Harvest
+                else:
+                    class_id = 2  # Other
+                
+                # Write YOLO format: class_id x_center y_center width height
+                f.write(f"{class_id} {x_center:.6f} {y_center:.6f} {width:.6f} {height:.6f}\n")
+
+        # Save metadata
+        metadata = {
+            'timestamp': data.get('timestamp', datetime.now().isoformat()),
+            'filename': filename,
+            'detections': detections,
+            'ready_count': data.get('ready_count', 0),
+            'not_ready_count': data.get('not_ready_count', 0),
+            'image_size': {'width': img_width, 'height': img_height}
             
-            if temp is not None and humid is not None:
-                env_entry = {
-                    'timestamp': datetime.now().isoformat(),
-                    'temperature': temp,
-                    'humidity': humid
-                }
-                
-                if 'environmentData' not in data['analytics']:
-                    data['analytics']['environmentData'] = []
-                
-                data['analytics']['environmentData'].append(env_entry)
+        }
         
-        # Save to file with timestamp
-        filename = f"lettuce-analytics-{datetime.now().strftime('%Y-%m-%d')}.json"
-        filepath = os.path.join('analytics_data', filename)
+        metadata_path = os.path.join('training_data', f'{filename}.json')
+        with open(metadata_path, 'w') as f:
+            json.dump(metadata, f, indent=2)
         
-        os.makedirs('analytics_data', exist_ok=True)
+        print(f"💾 Saved training data: {filename}")
+        print(f"   - Original image: {original_path}")
+        print(f"   - Annotated image: {annotated_path}")
+        print(f"   - YOLO labels: {label_path}")
+        print(f"   - Detections: {len(detections)}")
         
-        with open(filepath, 'w') as f:
-            json.dump(data, f, indent=2)
+        for det in detections:
+            save_detection(
+                label=det['label'],
+                confidence=det['confidence'],
+                bbox=det['bbox'],
+                health_status=det.get('health_status'),
+                health_confidence=det.get('health_confidence'),
+                image_path=original_path
+            )
+
+        return jsonify({
+            'status': 'success',
+            'filename': filename,
+            'detections': len(detections),
+            'paths': {
+                'original': original_path,
+                'annotated': annotated_path,
+                'labels': label_path
+            }
+        })
         
-        print(f"📊 Analytics saved to {filename}")
-        
-        return jsonify({'status': 'success', 'message': 'Data saved', 'file': filename})
     except Exception as e:
-        print(f"Error saving analytics: {e}")
-        return jsonify({'error': str(e)}), 500
+        print(f"Error saving training data: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+    
+
+@app.route('/reset-analytics', methods=['POST'])
+def reset_analytics():
+    """Reset all analytics data on server"""
+    global server_analytics_data
+    server_analytics_data = {
+        'readyCount': 0,
+        'notReadyCount': 0,
+        'totalDetections': 0,
+        'growthHistory': [],
+        'environmentData': []
+    }
+    
+    # Delete saved analytics files
+    try:
+        import shutil
+        if os.path.exists('analytics_data'):
+            shutil.rmtree('analytics_data')
+            os.makedirs('analytics_data', exist_ok=True)
+    except Exception as e:
+        print(f"Error deleting analytics files: {e}")
+    
+    print("📊 Analytics reset successfully")
+    return jsonify({'status': 'success', 'message': 'Analytics data reset'})
+
 
 @app.route('/get-pump-settings', methods=['GET'])
 def get_pump_settings():
@@ -798,6 +919,26 @@ def set_pump_settings():
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
+@app.route('/api/sensor-history', methods=['GET'])
+def api_sensor_history():
+    """Get sensor history"""
+    hours = request.args.get('hours', 24, type=int)
+    data = get_sensor_history(hours)
+    return jsonify(data)
+
+@app.route('/api/detection-summary', methods=['GET'])
+def api_detection_summary():
+    """Get detection summary"""
+    data = get_detection_summary()
+    return jsonify(data)
+
+@app.route('/api/relay-history', methods=['GET'])
+def api_relay_history():
+    """Get relay history"""
+    days = request.args.get('days', 7, type=int)
+    data = save_relay_event(days)
+    return jsonify(data)
+
 if __name__ == '__main__':
     print("\n" + "="*50)
     print("🥬 Lettuce Monitoring System - LIVE STREAM Edition")
@@ -807,7 +948,4 @@ if __name__ == '__main__':
     print(f"📹 ESP32 Stream: {STREAM_URL}")
     print("✅ Open: http://localhost:5000")
     print("="*50 + "\n")
-
     socketio.run(app, debug=False, host='0.0.0.0', port=5000, allow_unsafe_werkzeug=True)
-
-
