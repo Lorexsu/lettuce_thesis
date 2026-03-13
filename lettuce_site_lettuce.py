@@ -921,22 +921,65 @@ def set_pump_settings():
 
 @app.route('/api/sensor-history', methods=['GET'])
 def api_sensor_history():
-    """Get sensor history"""
+    """Get sensor history from database"""
     hours = request.args.get('hours', 24, type=int)
+    
+    # Use the database function to get sensor history
     data = get_sensor_history(hours)
-    return jsonify(data)
+    
+    # Format the data for charts (if your frontend expects this format)
+    formatted_data = {
+        'temperature': [reading['temperature'] for reading in data],
+        'humidity': [reading['humidity'] for reading in data],
+        'timestamps': [reading['timestamp'] for reading in data]
+    }
+    
+    return jsonify(formatted_data)
 
 @app.route('/api/detection-summary', methods=['GET'])
 def api_detection_summary():
-    """Get detection summary"""
-    data = get_detection_summary()
-    return jsonify(data)
+    """Get detection summary from database"""
+    days = request.args.get('days', 30, type=int)
+    
+    # Use the database function to get detection summary
+    data = get_detection_summary(days)
+    
+    # Group by date for chart display
+    summary = {}
+    for item in data:
+        date = item['date']
+        if date not in summary:
+            summary[date] = {
+                'date': date,
+                'ready_count': 0,
+                'not_ready_count': 0,
+                'avg_confidence': []
+            }
+        
+        # Categorize based on label
+        if 'ready' in item['label'].lower() and 'not' not in item['label'].lower():
+            summary[date]['ready_count'] = item['count']
+        else:
+            summary[date]['not_ready_count'] = item['count']
+        
+        summary[date]['avg_confidence'].append(item['avg_confidence'])
+    
+    # Format for charts (assuming your frontend expects this structure)
+    result = {
+        'labels': list(summary.keys()),
+        'ready': [summary[date]['ready_count'] for date in summary],
+        'notReady': [summary[date]['not_ready_count'] for date in summary]
+    }
+    
+    return jsonify(result)
 
 @app.route('/api/relay-history', methods=['GET'])
 def api_relay_history():
-    """Get relay history"""
+    """Get relay history from database"""
     days = request.args.get('days', 7, type=int)
-    data = save_relay_event(days)
+    
+    data = get_relay_history(days)
+    
     return jsonify(data)
 
 if __name__ == '__main__':
@@ -948,4 +991,5 @@ if __name__ == '__main__':
     print(f"📹 ESP32 Stream: {STREAM_URL}")
     print("✅ Open: http://localhost:5000")
     print("="*50 + "\n")
+
     socketio.run(app, debug=False, host='0.0.0.0', port=5000, allow_unsafe_werkzeug=True)
