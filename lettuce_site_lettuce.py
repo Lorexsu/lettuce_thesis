@@ -577,7 +577,7 @@ def check_automation():
     
     changes_made = False
     
-    # Fan automation (ON when temp >= 25°C)
+    # Fan automation (ON when temp >= 30°C)
     if temp is not None:
         should_activate_fan = temp >= TEMP_THRESHOLD
         if relay_states['fan'] != should_activate_fan:
@@ -993,4 +993,5 @@ if __name__ == '__main__':
     print("="*50 + "\n")
 
     socketio.run(app, debug=False, host='0.0.0.0', port=5000, allow_unsafe_werkzeug=True)
+
 
