@@ -292,17 +292,6 @@
           Connecting...
         </div>
       </div>
-
-      <div class="sensor-card">
-        
-        <div class="sensor-title">Light Intensity</div>
-        <div class="sensor-value">--</div>
-        <div class="sensor-unit">lux</div>
-        <div class="sensor-status disconnected">
-          <span class="status-dot dot-warning"></span>
-          Not Available
-        </div>
-      </div>
     </div>
     
     <!-- Analytics Dashboard -->
@@ -344,17 +333,6 @@
           <div class="analytics-value" id="growing">0</div>
           <div class="analytics-label">Still Growing</div>
           <div class="analytics-change" id="growth-change">0% of total</div>
-        </div>
-      </div>
-      
-      <div class="analytics-card">
-        <div class="analytics-icon info">
-          <i class="fas fa-chart-line"></i>
-        </div>
-        <div class="analytics-content">
-          <div class="analytics-value" id="growth-rate">0%</div>
-          <div class="analytics-label">Daily Growth Rate</div>
-          <div class="analytics-change" id="rate-change">vs yesterday</div>
         </div>
       </div>
       
@@ -407,146 +385,6 @@
           </div>
         </div>
       </div>
-      
-      <!-- Performance Metrics -->
-      <div class="analytics-section full-width">
-        <h3><i class="fas fa-tachometer-alt"></i> Performance Metrics</h3>
-        <div class="metrics-grid">
-          <div class="metric-card">
-            <div class="metric-icon">
-              <i class="fas fa-bolt"></i>
-            </div>
-            <div class="metric-content">
-              <div class="metric-value" id="efficiency-score">--</div>
-              <div class="metric-label">Growth Efficiency</div>
-              <div class="metric-progress">
-                <div class="progress-bar" id="efficiency-bar" style="width: 0%"></div>
-              </div>
-            </div>
-          </div>
-          
-          <div class="metric-card">
-            <div class="metric-icon">
-              <i class="fas fa-clock"></i>
-            </div>
-            <div class="metric-content">
-              <div class="metric-value" id="avg-growth-time">--</div>
-              <div class="metric-label">Avg. Growth Time</div>
-              <div class="metric-subtext">Days to harvest</div>
-            </div>
-          </div>
-          
-          <div class="metric-card">
-            <div class="metric-icon">
-              <i class="fas fa-percentage"></i>
-            </div>
-            <div class="metric-content">
-              <div class="metric-value" id="success-rate">--</div>
-              <div class="metric-label">Success Rate</div>
-              <div class="metric-subtext">Healthy plants</div>
-            </div>
-          </div>
-          
-          <div class="metric-card">
-            <div class="metric-icon">
-              <i class="fas fa-leaf"></i>
-            </div>
-            <div class="metric-content">
-              <div class="metric-value" id="yield-estimate">--</div>
-              <div class="metric-label">Yield Estimate</div>
-              <div class="metric-subtext">Total harvest weight</div>
-            </div>
-          </div>
-        </div>
-      </div>
-      
-      <!-- Environmental Impact -->
-      <div class="analytics-section">
-        <h3><i class="fas fa-cloud-sun"></i> Environment Impact</h3>
-        <div class="impact-list">
-          <div class="impact-item">
-            <div class="impact-icon temp">
-              <i class="fas fa-thermometer-half"></i>
-            </div>
-            <div class="impact-content">
-              <div class="impact-label">Temperature</div>
-              <div class="impact-value" id="temp-impact">Optimal</div>
-              <div class="impact-bar">
-                <div class="impact-fill optimal" style="width: 85%"></div>
-              </div>
-            </div>
-          </div>
-          
-          <div class="impact-item">
-            <div class="impact-icon humid">
-              <i class="fas fa-tint"></i>
-            </div>
-            <div class="impact-content">
-              <div class="impact-label">Humidity</div>
-              <div class="impact-value" id="humid-impact">Good</div>
-              <div class="impact-bar">
-                <div class="impact-fill good" style="width: 75%"></div>
-              </div>
-            </div>
-          </div>
-          
-          <div class="impact-item">
-            <div class="impact-icon light">
-              <i class="fas fa-sun"></i>
-            </div>
-            <div class="impact-content">
-              <div class="impact-label">Light Exposure</div>
-              <div class="impact-value" id="light-impact">Adequate</div>
-              <div class="impact-bar">
-                <div class="impact-fill adequate" style="width: 65%"></div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-      
-      <div class="temp-alert-banner" id="tempAlertBanner">
-        <div class="temp-alert-icon">🌡️</div>
-        <div class="temp-alert-content">
-          <div class="temp-alert-title">High Temperature Alert</div>
-          <div class="temp-alert-message" id="tempAlertMessage">Temperature has reached 25°C or higher</div>
-        </div>
-        <button class="temp-alert-close" onclick="closeTempAlert()">×</button>
-      </div>
-
-      <!-- Harvest Forecast -->
-      <div class="analytics-section">
-        <h3><i class="fas fa-calendar-alt"></i> Harvest Forecast</h3>
-        <div class="forecast-list">
-          <div class="forecast-item">
-            <div class="forecast-date">This Week</div>
-            <div class="forecast-value" id="forecast-week">-- heads</div>
-            <div class="forecast-bar">
-              <div class="forecast-fill" style="width: 40%"></div>
-            </div>
-          </div>
-          
-          <div class="forecast-item">
-            <div class="forecast-date">Next Week</div>
-            <div class="forecast-value" id="forecast-next-week">-- heads</div>
-            <div class="forecast-bar">
-              <div class="forecast-fill" style="width: 70%"></div>
-            </div>
-          </div>
-          
-          <div class="forecast-item">
-            <div class="forecast-date">Full Cycle</div>
-            <div class="forecast-value" id="forecast-full">-- heads</div>
-            <div class="forecast-bar">
-              <div class="forecast-fill" style="width: 100%"></div>
-            </div>
-          </div>
-        </div>
-        <div class="forecast-note" id="forecast-note">
-          Based on current growth rate of <span id="current-growth-rate">0</span> plants/day
-        </div>
-      </div>
-    </div>
     
     <!-- Recommendations Section -->
     <div class="recommendations-section">
@@ -566,15 +404,24 @@
     <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
       <h2 class="card-title">Live Camera Detection</h2>
       <div style="display: flex; gap: 0.75rem; align-items: center;">
-        <div class="status-indicator" style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.9rem; color: #6c757d; margin-right: 1rem;">
+        <div class="status-indicator" style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.9rem; color: #262323; margin-right: 1rem;">
           <span class="status-dot" id="statusDot" style="width: 10px; height: 10px; background: #ccc; border-radius: 50%;"></span>
           <span id="statusText">Disconnected</span>
         </div>
+        <!-- 
         <button id="startBtn" class="btn btn-primary" onclick="startStream()" style="display: inline-flex; align-items: center; gap: 0.5rem;">
           ▶ Start Live
         </button>
         <button id="stopBtn" class="btn btn-secondary" onclick="stopStream()" disabled style="background: #f44336; color: white; border: none;">
           ⏸ Stop
+        </button>
+        -->
+        <!-- OBS/RTMP Control Buttons -->
+        <button class="btn btn-primary" onclick="startRTMPStream()" style="background: #4caf50;">
+            <i class="fas fa-broadcast-tower"></i> Start OBS Stream
+        </button>
+        <button class="btn btn-secondary" onclick="stopRTMPStream()" style="background: #f44336;">
+            <i class="fas fa-stop"></i> Stop OBS Stream
         </button>
       </div>
     </div>
@@ -1645,51 +1492,72 @@ window.addEventListener('load', () => {
   }
 
   // Reset Analytics
-  function resetAnalytics() {
-    if (!confirm('Are you sure you want to reset all analytics data? This will clear:\n\n• Growth history\n• Detection counts\n• Saved images\n• All analytics files\n\nThis cannot be undone.')) {
-      return;
-    }
-    
-    // Clear localStorage
-    localStorage.removeItem('analyticsData');
-    localStorage.removeItem('plantingDateTime');
-    localStorage.removeItem('dailyStats');
-    
-    // Reset analytics data locally
-    analyticsData = {
-      readyCount: 0,
-      notReadyCount: 0,
-      totalDetections: 0,
-      growthHistory: [],
-      environmentData: []
-    };
-    
-    // Send reset request to server
-    fetch('/reset-analytics', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'}
-    })
-    .then(res => res.json())
-    .then(data => {
-      console.log('Server reset:', data);
-      showNotification('✅ All analytics data has been reset!', 'success');
-      
-      // Force page reload after 1 second to clear everything
-      setTimeout(() => {
-        window.location.reload();
-      }, 1000);
-    })
-    .catch(err => {
-      console.error('Server reset failed:', err);
-      showNotification('⚠️ Local data cleared, server reset failed', 'warning');
-      
-      // Still reload to clear local data
-      setTimeout(() => {
-        window.location.reload();
-      }, 1000);
-    });
+  // Reset Analytics - CLEAR EVERYTHING TO ZERO
+function resetAnalytics() {
+  if (!confirm('Reset all charts and counters to zero?')) {
+    return;
   }
-
+  
+  // Clear ALL localStorage
+  localStorage.clear();
+  sessionStorage.clear();
+  
+  // Reset all display values to 0 or --
+  document.getElementById('growth-ready-today').textContent = '0';
+  document.getElementById('growth-total').textContent = '0';
+  document.getElementById('growth-percentage').textContent = '0%';
+  document.getElementById('daily-avg-ready').textContent = '0';
+  document.getElementById('daily-trend').textContent = '→';
+  document.getElementById('daily-best').textContent = '--';
+  document.getElementById('harvest-ready').textContent = '0';
+  document.getElementById('growing').textContent = '0';
+  document.getElementById('growth-rate').textContent = '0%';
+  document.getElementById('peak-readiness').textContent = '--';
+  document.getElementById('needs-attention').textContent = '0%';
+  document.getElementById('days-remaining').textContent = '--';
+  document.getElementById('harvest-date').textContent = '--';
+  
+  // Clear charts
+  if (growthChart) {
+    growthChart.data.labels = [];
+    growthChart.data.datasets[0].data = [];
+    growthChart.data.datasets[1].data = [];
+    growthChart.update();
+  }
+  
+  if (dailyChart) {
+    dailyChart.data.labels = [];
+    dailyChart.data.datasets[0].data = [];
+    dailyChart.data.datasets[1].data = [];
+    dailyChart.update();
+  }
+  
+  if (readinessTrendChart) {
+    readinessTrendChart.data.datasets[0].data = [0,0,0,0,0,0,0];
+    readinessTrendChart.data.datasets[1].data = [0,0,0,0,0,0,0];
+    readinessTrendChart.update();
+  }
+  
+  if (growthDistributionChart) {
+    growthDistributionChart.data.datasets[0].data = [0,0,0,0];
+    growthDistributionChart.update();
+  }
+  
+  // Reset analytics data
+  analyticsData = {
+    readyCount: 0,
+    notReadyCount: 0,
+    totalDetections: 0,
+    growthHistory: [],
+    environmentData: []
+  };
+  
+  // Show success message
+  alert('✅ All data reset to zero!');
+  
+  // Optional: reload page to ensure everything is fresh
+  // setTimeout(() => location.reload(), 500);
+}
   // Notification function
   function showNotification(message, type = 'info') {
     const notification = document.createElement('div');
@@ -1727,92 +1595,72 @@ window.addEventListener('load', () => {
 
 
   
- window.addEventListener('load', () => {
-   // ===== ADD THIS NEW SECTION =====
-  // Load saved growth history for charts
-  const savedHistory = localStorage.getItem('growthHistory');
-  if (savedHistory) {
+// Load data from localStorage on page start
+window.addEventListener('load', () => {
+  // Load growth chart data
+  const growthStored = localStorage.getItem('growthChartData');
+  if (growthStored) {
     try {
-      const history = JSON.parse(savedHistory);
-      if (history.length > 0) {
-        // Update readiness trend chart with last 7 days
-        const last7Days = history.slice(-7);
-        const readinessData = last7Days.map(day => 
-          day.total > 0 ? Math.round((day.ready / day.total) * 100) : 0
-        );
+      const data = JSON.parse(growthStored);
+      if (data.labels && data.labels.length > 0) {
+        growthChart.data.labels = data.labels;
+        growthChart.data.datasets[0].data = data.ready || [];
+        growthChart.data.datasets[1].data = data.notReady || [];
+        growthChart.update();
         
-        // Update readiness trend chart
-        readinessTrendChart.data.datasets[0].data = readinessData;
-        readinessTrendChart.update();
-        
-        // Update growth chart with latest data
-        const latest = history[history.length - 1];
-        if (latest) {
-          analyticsData.readyCount = latest.ready;
-          analyticsData.notReadyCount = latest.notReady;
-          analyticsData.totalDetections = latest.total;
-          analyticsData.growthHistory = history;
-          
-          updateAnalyticsDisplay();
-          updateDistributionChart();
-        }
-        
-        // Also update the growth progression and daily charts
-        if (typeof growthChart !== 'undefined') {
-          // Rebuild growth chart data from history
-          const growthLabels = history.map(h => `Day ${h.day || h.daysSincePlanting || 0}`);
-          const readyData = history.map(h => h.ready);
-          const notReadyData = history.map(h => h.notReady);
-          
-          growthChart.data.labels = growthLabels;
-          growthChart.data.datasets[0].data = readyData;
-          growthChart.data.datasets[1].data = notReadyData;
-          growthChart.update();
-        }
-        
-        if (typeof dailyChart !== 'undefined') {
-          // Rebuild daily chart data from last 7 days
-          const last7DaysLabels = last7Days.map(h => {
-            const date = new Date(h.date);
-            return `${date.getMonth()+1}/${date.getDate()}`;
-          });
-          const last7DaysReady = last7Days.map(h => h.ready);
-          const last7DaysNotReady = last7Days.map(h => h.notReady);
-          
-          dailyChart.data.labels = last7DaysLabels;
-          dailyChart.data.datasets[0].data = last7DaysReady;
-          dailyChart.data.datasets[1].data = last7DaysNotReady;
-          dailyChart.update();
-        }
+        // Update stats
+        const lastIndex = data.ready.length - 1;
+        document.getElementById('growth-ready-today').textContent = data.ready[lastIndex] || '0';
+        document.getElementById('growth-total').textContent = data.total?.[lastIndex] || '0';
+        document.getElementById('growth-percentage').textContent = 
+          data.total?.[lastIndex] > 0 
+            ? Math.round((data.ready[lastIndex] / data.total[lastIndex]) * 100) + '%' 
+            : '0%';
       }
     } catch (e) {
-      console.error('Error loading history:', e);
-    }
-  }
-
-  // Load saved analytics data
-  const savedData = localStorage.getItem('analyticsData');
-  if (savedData) {
-    try {
-      const parsedData = JSON.parse(savedData);
-      // Merge with defaults to ensure all properties exist
-      analyticsData = {
-        ...analyticsData,  // Default values
-        ...parsedData      // Saved values override defaults
-      };
-      updateAnalyticsDisplay();
-      updateCharts();
-      updateRecommendations();
-    } catch (e) {
-      console.error('Error loading analytics data:', e);
-      // Keep default analyticsData
+      console.error('Error loading growth data:', e);
     }
   }
   
-  // Also update analytics with any current data
-  if (typeof latest_detection !== 'undefined') {
-    updateAnalytics(latest_detection);
+  // Load daily chart data
+  const dailyStored = localStorage.getItem('dailyChartData');
+  if (dailyStored) {
+    try {
+      const data = JSON.parse(dailyStored);
+      if (data.labels && data.labels.length > 0) {
+        dailyChart.data.labels = data.labels;
+        dailyChart.data.datasets[0].data = data.ready || [];
+        dailyChart.data.datasets[1].data = data.notReady || [];
+        dailyChart.update();
+        
+        // Update stats
+        const avgReady = data.ready.length > 0 
+          ? Math.round(data.ready.reduce((a,b) => a+b, 0) / data.ready.length) 
+          : 0;
+        document.getElementById('daily-avg-ready').textContent = avgReady;
+        document.getElementById('daily-best').textContent = data.labels.slice(-1)[0] || '--';
+      }
+    } catch (e) {
+      console.error('Error loading daily data:', e);
+    }
   }
+  
+  // Load analytics data
+  const analyticsStored = localStorage.getItem('analyticsData');
+  if (analyticsStored) {
+    try {
+      const data = JSON.parse(analyticsStored);
+      analyticsData = {...analyticsData, ...data};
+      document.getElementById('harvest-ready').textContent = analyticsData.readyCount || 0;
+      document.getElementById('growing').textContent = analyticsData.notReadyCount || 0;
+    } catch (e) {
+      console.error('Error loading analytics:', e);
+    }
+  }
+  
+  // Sidebar preference
+  const isCollapsed = localStorage.getItem('sidebarCollapsed') === 'true';
+  if (isCollapsed) document.querySelector('.sidebar').classList.add('collapsed');
 });
     
 
@@ -1895,13 +1743,14 @@ window.addEventListener('load', () => {
       if (data.humidity !== undefined) {
         document.getElementById('humidValueLive').textContent = data.humidity.toFixed(1) + '%';
       }
-      
+     /* 
       // Auto-save annotated image if detections exist
       if (data.detections && data.detections.length > 0) {
         saveAnnotatedDetectionImage(data);
       }
+      */
     });
-    
+  /*  
     // Function to save annotated detection images
     function saveAnnotatedDetectionImage(detectionData) {
   try {
@@ -1939,18 +1788,7 @@ window.addEventListener('load', () => {
     console.error('Error saving training data:', error);
   }
 }
-
-    function startStream() {
-      socket.emit('start_live_stream');
-      document.getElementById('startBtn').disabled = true;
-      document.getElementById('stopBtn').disabled = false;
-      document.getElementById('statusText').textContent = 'Streaming';
-      
-      fpsIntervalLive = setInterval(() => {
-        document.getElementById('fpsCounter').textContent = frameCountLiveVar;
-        frameCountLiveVar = 0;
-      }, 1000);
-    }
+*/
 
     function startStream() {
       console.log('🔴 startStream called');
@@ -2104,7 +1942,7 @@ window.addEventListener('load', () => {
     }
     
     // Check if temperature is 25°C or higher
-    if (currentTemp >= 25) {
+    if (currentTemp >= 30) {
       // Show alert if not already showing
       if (!highTempAlertActive) {
         showTemperatureAlert(currentTemp);
@@ -2415,6 +2253,61 @@ async function loadDatabaseHistory() {
 
 // Call when page loads
 document.addEventListener('DOMContentLoaded', loadDatabaseHistory);
+
+// RTMP Stream Control Functions
+function startRTMPStream() {
+    console.log('📡 Starting RTMP stream...');
+    socket.emit('start_rtmp_stream');
+    
+    document.getElementById('statusText').textContent = 'Connecting to OBS...';
+    document.getElementById('statusDot').style.background = '#ff9800';
+    
+    document.getElementById('rtmpStatus').innerHTML = 
+        '<i class="fas fa-circle" style="color: #ff9800;"></i> Waiting for OBS to connect...';
+}
+
+function stopRTMPStream() {
+    console.log('⏹️ Stopping RTMP stream...');
+    socket.emit('stop_rtmp_stream');
+    
+    document.getElementById('statusText').textContent = 'Disconnected';
+    document.getElementById('statusDot').style.background = '#ccc';
+    
+    document.getElementById('rtmpStatus').innerHTML = 
+        '<i class="fas fa-circle" style="color: #ccc;"></i> Stream stopped';
+}
+
+// Check RTMP status periodically
+setInterval(() => {
+    socket.emit('check_rtmp_status');
+}, 5000);
+
+socket.on('rtmp_status', (data) => {
+    const rtmpDot = document.getElementById('rtmpDot');
+    const rtmpText = document.getElementById('rtmpText');
+    
+    if (data.running) {
+        rtmpDot.style.color = '#4caf50';
+        rtmpText.textContent = `OBS connected - ${data.frame_count} frames processed`;
+    } else {
+        rtmpDot.style.color = '#ccc';
+        rtmpText.textContent = 'Waiting for OBS connection...';
+    }
+});
+
+socket.on('stream_status', (data) => {
+    if (data.status === 'connected') {
+        document.getElementById('statusText').textContent = 'Streaming';
+        document.getElementById('statusDot').style.background = '#4caf50';
+        document.getElementById('rtmpStatus').innerHTML = 
+            '<i class="fas fa-circle" style="color: #4caf50;"></i> OBS connected! Processing frames...';
+    } else if (data.status === 'error') {
+        document.getElementById('statusText').textContent = 'Error';
+        document.getElementById('statusDot').style.background = '#f44336';
+        document.getElementById('rtmpStatus').innerHTML = 
+            `<i class="fas fa-circle" style="color: #f44336;"></i> Error: ${data.message}`;
+    }
+});
 
   </script>
 

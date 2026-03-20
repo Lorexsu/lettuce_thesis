@@ -3,15 +3,14 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>History - Cabuyew Hydroponics</title>
+  <title>Database Viewer - Cabuyew Hydroponics</title>
   <link rel="stylesheet" href="./styles.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-
 </head>
 <body>
 
 <button class="mobile-toggle" onclick="toggleMobileSidebar()">
-<i class="fas fa-bars"></i>
+  <i class="fas fa-bars"></i>
 </button>
 
 <!-- Sidebar -->
@@ -34,7 +33,7 @@
     <i class="nav-icon fas fa-tachometer-alt"></i>
     <span>Dashboard</span>
   </div>
-  <div class="nav-item" data-href="/history" data-tooltip="History">
+  <div class="nav-item active" data-href="/history" data-tooltip="Database Viewer">
     <i class="nav-icon fas fa-history"></i>
     <span>History</span>
   </div>
@@ -48,291 +47,453 @@
   </div>
 </div>
 
-  <!-- Main Content -->
-  <div class="main-wrapper">
-    
-    <!-- Header -->
-    <div class="page-header">
-      <div class="page-title-section">
-        <h1 class="page-title">Activity History</h1>
-        <div class="breadcrumb">Dashboard › History › Activity Logs</div>
-      </div>
-      <div class="header-actions">
-        <div class="dropdown">
-          <button class="btn btn-secondary" onclick="toggleExport()">Export</button>
-          <div class="dropdown-content" id="exportDropdown">
-            <div class="dropdown-item" onclick="exportCSV()">Export as CSV</div>
-            <div class="dropdown-item" onclick="exportJSON()">Export as JSON</div>
-            <div class="dropdown-item" onclick="printLogs()">Print Report</div>
-          </div>
-        </div>
-        <button class="btn btn-danger" onclick="clearAllLogs()">Clear All</button>
-      </div>
+<!-- Main Content -->
+<div class="main-wrapper">
+  
+  <!-- Header -->
+  <div class="page-header">
+    <div class="page-title-section">
+      <h1 class="page-title">Database Viewer</h1>
+      <div class="breadcrumb">Dashboard › Database › Records</div>
     </div>
-
-    <!-- Stats -->
-    <div class="stats-grid">
-      <div class="stat-card">
-        <div class="stat-value" id="total-logs">0</div>
-        <div class="stat-label">Total Events</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-value" id="fan-activations">0</div>
-        <div class="stat-label">Fan Activations</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-value" id="mist-activations">0</div>
-        <div class="stat-label">Pump Activations</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-value" id="led-activations">0</div>
-        <div class="stat-label">Light Activations</div>
-      </div>
-    </div>
-
-    <!-- Logs Table -->
-    <div class="card">
-      <div class="card-header">
-        <h2 class="card-title">Recent Activity</h2>
-        <div class="filter-buttons">
-          <button class="filter-btn active" onclick="filterLogs('all')">All</button>
-          <button class="filter-btn" onclick="filterLogs('Fan')">Fan</button>
-          <button class="filter-btn" onclick="filterLogs('Pump')">Pump</button>
-          <button class="filter-btn" onclick="filterLogs('Light')">Light</button>
-        </div>
-      </div>
-      <div class="card-body">
-        
-        <div class="loading" id="loading">
-          <div class="loading-spinner"></div>
-          Loading activity logs...
-        </div>
-
-        <div class="table-responsive" id="table-container" style="display: none;">
-          <table class="log-table">
-            <thead>
-              <tr>
-                <th>Timestamp</th>
-                <th>Device</th>
-                <th>Action</th>
-                <th>Reason</th>
-                <th>Temperature</th>
-                <th>Humidity</th>
-                <th>Battery</th>
-              </tr>
-            </thead>
-            <tbody id="logs-list">
-            </tbody>
-          </table>
-        </div>
-
-        <div class="no-logs" id="no-logs" style="display: none;">
-          <div class="no-logs-title">No Activity Logs</div>
-          <div class="no-logs-text">Device activity will appear here once the system starts logging events</div>
-        </div>
-
-      </div>
-    </div>
-
   </div>
 
-  <script>
-    let allLogs = [];
-    let currentFilter = 'all';
+  <!-- Database Stats -->
+  <div class="db-stats" id="db-stats">
+    <div class="db-stat-card">
+      <div class="db-stat-value" id="stat-sensors">0</div>
+      <div class="db-stat-label">Sensor Readings</div>
+    </div>
+    <div class="db-stat-card">
+      <div class="db-stat-value" id="stat-detections">0</div>
+      <div class="db-stat-label">Detections</div>
+    </div>
+    <div class="db-stat-card">
+      <div class="db-stat-value" id="stat-relays">0</div>
+      <div class="db-stat-label">Relay Events</div>
+    </div>
+    <div class="db-stat-card">
+      <div class="db-stat-value" id="db-size">0 KB</div>
+      <div class="db-stat-label">Database Size</div>
+    </div>
+  </div>
 
-    // Navigation
-    document.querySelectorAll('.nav-item').forEach(item => {
-      item.addEventListener('click', function() {
-        const href = this.getAttribute('data-href');
-        if (href) window.location.href = href;
-      });
+  <!-- Tabs -->
+  <div class="history-tabs">
+    <button class="history-tab active" onclick="switchTab('sensors')">
+      <i class="fas fa-temperature-high"></i> Sensor Readings
+    </button>
+    <button class="history-tab" onclick="switchTab('detections')">
+      <i class="fas fa-leaf"></i> Detections
+    </button>
+    <button class="history-tab" onclick="switchTab('relays')">
+      <i class="fas fa-bolt"></i> Relay Events
+    </button>
+  </div>
+
+  <!-- Filter Bar -->
+  <div class="filter-bar">
+    <input type="text" class="search-input" id="searchInput" placeholder="Search in table..." onkeyup="filterTable()">
+    <input type="date" class="date-filter" id="dateFilter" onchange="filterTable()">
+    <select class="limit-select" id="limitSelect" onchange="changeLimit()">
+      <option value="50">50 per page</option>
+      <option value="100" selected>100 per page</option>
+      <option value="200">200 per page</option>
+      <option value="500">500 per page</option>
+    </select>
+    <button class="refresh-btn" onclick="refreshData()">
+      <i class="fas fa-sync-alt"></i> Refresh
+    </button>
+    <button class="export-btn" onclick="exportCurrentView()">
+      <i class="fas fa-download"></i> Export
+    </button>
+  </div>
+
+  <!-- Sensors Section -->
+  <div id="sensors-section" class="history-section active">
+    <div class="table-container">
+      <table class="data-table" id="sensors-table">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Timestamp</th>
+            <th>Temperature (°C)</th>
+            <th>Humidity (%)</th>
+            <th>Sensor ID</th>
+            <th>Location</th>
+          </tr>
+        </thead>
+        <tbody id="sensors-tbody">
+          <tr><td colspan="6" style="text-align: center; padding: 3rem;">Loading sensor data...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Detections Section -->
+  <div id="detections-section" class="history-section">
+    <div class="table-container">
+      <table class="data-table" id="detections-table">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Timestamp</th>
+            <th>Label</th>
+            <th>Confidence</th>
+            <th>Health Status</th>
+            <th>Health Conf.</th>
+            <th>Bounding Box</th>
+          </tr>
+        </thead>
+        <tbody id="detections-tbody">
+          <tr><td colspan="7" style="text-align: center; padding: 3rem;">Loading detection data...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Relays Section -->
+  <div id="relays-section" class="history-section">
+    <div class="table-container">
+      <table class="data-table" id="relays-table">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Timestamp</th>
+            <th>Relay</th>
+            <th>Action</th>
+            <th>Trigger Type</th>
+            <th>Temperature (°C)</th>
+            <th>Humidity (%)</th>
+          </tr>
+        </thead>
+        <tbody id="relays-tbody">
+          <tr><td colspan="7" style="text-align: center; padding: 3rem;">Loading relay data...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Pagination -->
+  <div class="pagination" id="pagination"></div>
+
+</div>
+
+<script>
+  // Navigation
+  document.querySelectorAll('.nav-item').forEach(item => {
+    item.addEventListener('click', function() {
+      const href = this.getAttribute('data-href');
+      if (href) window.location.href = href;
     });
+  });
 
-    // Fetch logs on load
-    window.addEventListener('load', () => {
-      fetchLogs();
-      setInterval(fetchLogs, 5000);
-    });
+  // State management
+  let currentTab = 'sensors';
+  let currentPage = 1;
+  let itemsPerPage = 100;
+  let allData = {
+    sensors: [],
+    detections: [],
+    relays: []
+  };
+  let filteredData = {
+    sensors: [],
+    detections: [],
+    relays: []
+  };
 
-    async function fetchLogs() {
-      try {
-        const response = await fetch('/get-activity-logs?limit=100');
-        const data = await response.json();
-        
-        allLogs = data.logs || [];
-        updateStats();
-        displayLogs();
-        
-        document.getElementById('loading').style.display = 'none';
-        
-        if (allLogs.length === 0) {
-          document.getElementById('table-container').style.display = 'none';
-          document.getElementById('no-logs').style.display = 'block';
-        } else {
-          document.getElementById('table-container').style.display = 'block';
-          document.getElementById('no-logs').style.display = 'none';
-        }
-      } catch (error) {
-        console.error('Error fetching logs:', error);
-        document.getElementById('loading').innerHTML = '<div class="no-logs-title">Connection Error</div><div class="no-logs-text">Failed to load logs. Make sure Flask server is running.</div>';
-      }
-    }
+  // Load data on page load
+  window.addEventListener('load', () => {
+    fetchAllData();
+    fetchDatabaseStats();
+    setInterval(fetchAllData, 30000); // Refresh every 30 seconds
+  });
 
-    function updateStats() {
-      const fanCount = allLogs.filter(log => log.device === 'Fan' && log.action === 'ON').length;
-      const pumpCount = allLogs.filter(log => log.device === 'Pump' && log.action === 'ON').length;
-      const lightCount = allLogs.filter(log => log.device === 'Light' && log.action === 'ON').length;
+  async function fetchAllData() {
+    await Promise.all([
+      fetchSensorData(),
+      fetchDetectionData(),
+      fetchRelayData()
+    ]);
+    filterTable();
+  }
 
-      document.getElementById('total-logs').textContent = allLogs.length;
-      document.getElementById('fan-activations').textContent = fanCount;
-      document.getElementById('mist-activations').textContent = pumpCount;
-      document.getElementById('led-activations').textContent = lightCount;
-    }
-
-    function displayLogs() {
-      const tbody = document.getElementById('logs-list');
-      tbody.innerHTML = '';
-
-      const filteredLogs = currentFilter === 'all' 
-        ? allLogs 
-        : allLogs.filter(log => log.device === currentFilter);
-
-      filteredLogs.reverse().forEach(log => {
-        const row = document.createElement('tr');
-        row.innerHTML = `
-          <td class="log-time">${log.timestamp || '--'}</td>
-          <td class="log-device">${log.device}</td>
-          <td><span class="log-action ${log.action.toLowerCase()}">${log.action}</span></td>
-          <td class="log-reason">${log.reason || '--'}</td>
-          <td class="log-data">${log.temperature ? log.temperature.toFixed(1) + '°C' : '--'}</td>
-          <td class="log-data">${log.humidity ? log.humidity.toFixed(1) + '%' : '--'}</td>
-          <td class="log-data">${log.battery_voltage !== 'N/A' ? log.battery_voltage.toFixed(2) + 'V' : '--'}</td>
-        `;
-        tbody.appendChild(row);
-      });
-    }
-
-    function filterLogs(type) {
-      currentFilter = type;
-      document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
-      event.target.classList.add('active');
-      displayLogs();
-    }
-
-    function toggleExport() {
-      document.getElementById('exportDropdown').classList.toggle('show');
-    }
-
-    window.onclick = function(event) {
-      if (!event.target.matches('.btn')) {
-        document.querySelectorAll('.dropdown-content').forEach(d => d.classList.remove('show'));
-      }
-    }
-
-    function exportCSV() {
-      const csv = ['Timestamp,Device,Action,Reason,Temperature,Humidity,Battery'];
-      allLogs.forEach(log => {
-        csv.push([
-          log.timestamp,
-          log.device,
-          log.action,
-          log.reason || '',
-          log.temperature || '',
-          log.humidity || '',
-          log.battery_voltage || ''
-        ].join(','));
-      });
+  // ===== UPDATED: Real sensor data =====
+  async function fetchSensorData() {
+    try {
+      const response = await fetch('/api/sensor-history?hours=720'); // Last 30 days
+      const data = await response.json();
       
-      const blob = new Blob([csv.join('\n')], { type: 'text/csv' });
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `activity_logs_${new Date().toISOString().split('T')[0]}.csv`;
-      a.click();
-      toggleExport();
-    }
-
-    function exportJSON() {
-      const json = JSON.stringify(allLogs, null, 2);
-      const blob = new Blob([json], { type: 'application/json' });
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `activity_logs_${new Date().toISOString().split('T')[0]}.json`;
-      a.click();
-      toggleExport();
-    }
-
-    function printLogs() {
-      window.print();
-      toggleExport();
-    }
-
-    async function clearAllLogs() {
-      if (!confirm('Are you sure you want to clear all activity logs? This cannot be undone.')) {
-        return;
+      // Transform to array format
+      if (data.timestamps && data.timestamps.length > 0) {
+        allData.sensors = data.timestamps.map((ts, index) => ({
+          id: index + 1,
+          timestamp: ts,
+          temperature: data.temperature[index],
+          humidity: data.humidity[index],
+          sensor_id: 'DHT11_001',
+          location: 'Greenhouse A'
+        })).reverse();
+      } else {
+        allData.sensors = [];
       }
+      
+      document.getElementById('stat-sensors').textContent = allData.sensors.length;
+    } catch (error) {
+      console.error('Error fetching sensor data:', error);
+      allData.sensors = [];
+      document.getElementById('sensors-tbody').innerHTML = 
+        '<tr><td colspan="6" style="text-align: center; padding: 3rem; color: #f44336;">Error loading sensor data</td></tr>';
+    }
+  }
 
-      try {
-        const response = await fetch('/clear-logs', { method: 'POST' });
-        if (response.ok) {
-          alert('All logs cleared successfully');
-          fetchLogs();
-        } else {
-          alert('Failed to clear logs');
+  // ===== UPDATED: Now uses REAL detection data from database =====
+  async function fetchDetectionData() {
+    try {
+      // Use the REAL detections endpoint
+      const response = await fetch('/api/detections?days=30');
+      const data = await response.json();
+      
+      if (Array.isArray(data)) {
+        allData.detections = data;
+        console.log(`✅ Loaded ${allData.detections.length} real detections from database`);
+      } else {
+        allData.detections = [];
+      }
+      
+      document.getElementById('stat-detections').textContent = allData.detections.length;
+    } catch (error) {
+      console.error('Error fetching detection data:', error);
+      allData.detections = [];
+      document.getElementById('detections-tbody').innerHTML = 
+        '<tr><td colspan="7" style="text-align: center; padding: 3rem; color: #f44336;">Error loading detection data</td></tr>';
+    }
+  }
+
+  // ===== UPDATED: Better database stats =====
+  async function fetchRelayData() {
+    try {
+      const response = await fetch('/api/relay-history?days=30');
+      const data = await response.json();
+      
+      if (Array.isArray(data)) {
+        allData.relays = data.map((item, index) => ({
+          id: index + 1,
+          timestamp: item.timestamp,
+          relay: item.relay,
+          action: item.action,
+          trigger: item.trigger,
+          temperature: item.temperature,
+          humidity: item.humidity
+        }));
+      } else {
+        allData.relays = [];
+      }
+      
+      document.getElementById('stat-relays').textContent = allData.relays.length;
+    } catch (error) {
+      console.error('Error fetching relay data:', error);
+      allData.relays = [];
+      document.getElementById('relays-tbody').innerHTML = 
+        '<tr><td colspan="7" style="text-align: center; padding: 3rem; color: #f44336;">Error loading relay data</td></tr>';
+    }
+  }
+
+  async function fetchDatabaseStats() {
+    try {
+      // Calculate total rows and more accurate size
+      const totalRows = allData.sensors.length + allData.detections.length + allData.relays.length;
+      const dbSize = (totalRows * 1).toFixed(1); // ~1KB per row average
+      document.getElementById('db-size').textContent = dbSize + ' KB';
+    } catch (error) {
+      console.error('Error calculating stats:', error);
+    }
+  }
+
+  function switchTab(tab) {
+    currentTab = tab;
+    currentPage = 1;
+    
+    // Update tab buttons
+    document.querySelectorAll('.history-tab').forEach(btn => btn.classList.remove('active'));
+    event.target.classList.add('active');
+    
+    // Show/hide sections
+    document.querySelectorAll('.history-section').forEach(section => section.classList.remove('active'));
+    document.getElementById(tab + '-section').classList.add('active');
+    
+    // Reset search and date filters
+    document.getElementById('searchInput').value = '';
+    document.getElementById('dateFilter').value = '';
+    
+    filterTable();
+  }
+
+  function filterTable() {
+    const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+    const dateFilter = document.getElementById('dateFilter').value;
+    
+    // Filter data based on current tab
+    filteredData[currentTab] = allData[currentTab].filter(item => {
+      let matchesSearch = true;
+      let matchesDate = true;
+      
+      if (searchTerm) {
+        const itemString = JSON.stringify(item).toLowerCase();
+        matchesSearch = itemString.includes(searchTerm);
+      }
+      
+      if (dateFilter) {
+        matchesDate = item.timestamp?.startsWith(dateFilter);
+      }
+      
+      return matchesSearch && matchesDate;
+    });
+    
+    displayTable();
+  }
+
+  function displayTable() {
+    const tbody = document.getElementById(currentTab + '-tbody');
+    const data = filteredData[currentTab];
+    const start = (currentPage - 1) * itemsPerPage;
+    const end = start + itemsPerPage;
+    const pageData = data.slice(start, end);
+    
+    if (data.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="8" style="text-align: center; padding: 3rem;">No records found</td></tr>`;
+    } else {
+      tbody.innerHTML = pageData.map(item => {
+        switch(currentTab) {
+          case 'sensors':
+            return `
+              <tr>
+                <td>${item.id}</td>
+                <td>${item.timestamp}</td>
+                <td>${item.temperature?.toFixed(1)}°C</td>
+                <td>${item.humidity?.toFixed(1)}%</td>
+                <td>${item.sensor_id}</td>
+                <td>${item.location}</td>
+              </tr>
+            `;
+          case 'detections':
+            return `
+              <tr>
+                <td>${item.id}</td>
+                <td>${item.timestamp}</td>
+                <td><span class="${item.label.includes('Ready') ? 'badge-ready' : 'badge-not-ready'}">${item.label}</span></td>
+                <td>${(item.confidence * 100).toFixed(1)}%</td>
+                <td>${item.health_status}</td>
+                <td>${(item.health_confidence * 100).toFixed(1)}%</td>
+                <td>${item.bbox}</td>
+              </tr>
+            `;
+          case 'relays':
+            return `
+              <tr>
+                <td>${item.id}</td>
+                <td>${item.timestamp}</td>
+                <td>${item.relay}</td>
+                <td><span class="badge-${item.action.toLowerCase()}">${item.action}</span></td>
+                <td>${item.trigger}</td>
+                <td>${item.temperature?.toFixed(1) || '--'}°C</td>
+                <td>${item.humidity?.toFixed(1) || '--'}%</td>
+              </tr>
+            `;
         }
-      } catch (error) {
-        alert('Error: ' + error.message);
-      }
+      }).join('');
     }
-
-    // Sidebar Toggle Function
-function toggleSidebar() {
-  const sidebar = document.querySelector('.sidebar');
-  sidebar.classList.toggle('collapsed');
-  
-  // Save preference to localStorage
-  const isCollapsed = sidebar.classList.contains('collapsed');
-  localStorage.setItem('sidebarCollapsed', isCollapsed);
-}
-
-function toggleMobileSidebar() {
-  const sidebar = document.querySelector('.sidebar');
-  sidebar.classList.toggle('mobile-open');
-}
-
-// Check saved preference on page load
-window.addEventListener('load', () => {
-  const isCollapsed = localStorage.getItem('sidebarCollapsed') === 'true';
-  const sidebar = document.querySelector('.sidebar');
-  
-  if (isCollapsed) {
-    sidebar.classList.add('collapsed');
+    
+    updatePagination(data.length);
   }
-  
-  // Mobile detection
-  const mobileToggle = document.querySelector('.mobile-toggle');
-  if (window.innerWidth <= 768) {
-    mobileToggle.style.display = 'flex';
-  } else {
-    mobileToggle.style.display = 'none';
+
+  function updatePagination(totalItems) {
+    const totalPages = Math.ceil(totalItems / itemsPerPage);
+    const pagination = document.getElementById('pagination');
+    
+    if (totalPages <= 1) {
+      pagination.innerHTML = '';
+      return;
+    }
+    
+    let html = '';
+    for (let i = 1; i <= totalPages; i++) {
+      html += `<button class="page-btn ${i === currentPage ? 'active' : ''}" onclick="goToPage(${i})">${i}</button>`;
+    }
+    
+    pagination.innerHTML = html;
   }
-  
-  // Update on resize
-  window.addEventListener('resize', () => {
+
+  function goToPage(page) {
+    currentPage = page;
+    displayTable();
+  }
+
+  function changeLimit() {
+    itemsPerPage = parseInt(document.getElementById('limitSelect').value);
+    currentPage = 1;
+    filterTable();
+  }
+
+  function refreshData() {
+    fetchAllData();
+  }
+
+  function exportCurrentView() {
+    const data = filteredData[currentTab];
+    
+    // Convert to CSV
+    if (data.length === 0) {
+      alert('No data to export');
+      return;
+    }
+    
+    const headers = Object.keys(data[0]);
+    const csvRows = [];
+    csvRows.push(headers.join(','));
+    
+    for (const row of data) {
+      const values = headers.map(header => {
+        const val = row[header] || '';
+        return `"${val.toString().replace(/"/g, '""')}"`;
+      });
+      csvRows.push(values.join(','));
+    }
+    
+    const csvString = csvRows.join('\n');
+    const blob = new Blob([csvString], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${currentTab}_${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    window.URL.revokeObjectURL(url);
+  }
+
+  // Sidebar Functions
+  function toggleSidebar() {
+    const sidebar = document.querySelector('.sidebar');
+    sidebar.classList.toggle('collapsed');
+    localStorage.setItem('sidebarCollapsed', sidebar.classList.contains('collapsed'));
+  }
+
+  function toggleMobileSidebar() {
+    document.querySelector('.sidebar').classList.toggle('mobile-open');
+  }
+
+  // Load sidebar preference
+  window.addEventListener('load', () => {
+    const isCollapsed = localStorage.getItem('sidebarCollapsed') === 'true';
+    if (isCollapsed) document.querySelector('.sidebar').classList.add('collapsed');
+    
+    const mobileToggle = document.querySelector('.mobile-toggle');
     if (window.innerWidth <= 768) {
       mobileToggle.style.display = 'flex';
-      // Close sidebar on mobile by default
-      sidebar.classList.remove('collapsed');
-    } else {
-      mobileToggle.style.display = 'none';
-      sidebar.classList.remove('mobile-open');
     }
   });
-});
 
-
-  </script>
+</script>
 
 </body>
 </html>
