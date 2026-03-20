@@ -17,11 +17,13 @@ import torch
 import torch.nn as nn
 from torchvision import transforms
 import timm
+import threading
+from adb_capture import ADBCapture
+import database
 from database import (
     save_sensor_reading,
     save_detection,
     save_relay_event,
-    get_sensor_history,
     get_detection_summary,
     get_relay_history,
     update_daily_summary
@@ -32,7 +34,6 @@ app = Flask(__name__, static_folder='static', template_folder='templates')
 app.config['SECRET_KEY'] = 'your-secret-key-change-this'
 CORS(app)
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
-
 
 # Tapo Camera Configuration
 TAPO_IP = "192.168.1.2"  
@@ -45,7 +46,7 @@ ESP32_IP = "10.172.94.149"
 ESP32_SENSOR_URL = f"http://{ESP32_IP}:5000/get-sensor-data"    
 
 #Load YOLO (Readiness Detection)
-model_path = "/home/ubuntu/lettuce_thesis/best.pt"
+model_path = "C:/Users/Rolex Jr/OneDrive/Desktop/lettuce_model_thesis/runs/detect/lettuce_yolo12_new_trained_new2/weights/best.pt"
 
 try:
     model = YOLO(model_path)
@@ -105,9 +106,15 @@ activity_logs = []
 live_stream_active = False
 latest_detection = None
 
-# LIVE STREAM PROCESSING
-def process_frame_yolo(frame):
+last_save_time_screen = 0
+SAVE_INTERVAL = 180  # 3 minutes
+
+
+def process_frame_yolo(frame, save_to_db=False):
     """Process single frame with YOLO"""
+    if frame is None:
+        return None, []
+    
     results = model.predict(frame, conf=0.3, iou=0.3, verbose=False)
     
     detections = []
@@ -166,18 +173,36 @@ def process_frame_yolo(frame):
                     print(f"Health classification error: {e}")
                     health_status = 'Error'
             
-            detections.append({
+            # Create detection dictionary
+            detection = {
                 'label': label,
                 'confidence': conf,
                 'bbox': {'x1': x1, 'y1': y1, 'x2': x2, 'y2': y2},
                 'health_status': health_status,
                 'health_confidence': health_confidence
-            })
+            }
+            detections.append(detection)
+            
+    # Save to database (moved outside the inner loop but still inside box loop)
+    if save_to_db:
+        for det in detections:
+            try:
+                save_detection(
+                    label=det['label'],
+                    confidence=det['confidence'],
+                    bbox=det['bbox'],
+                    health_status=det.get('health_status', 'Unknown'),
+                    health_confidence=det.get('health_confidence', 0.0),
+                    image_path=f'live_stream_{datetime.now().strftime("%Y%m%d_%H%M%S")}.jpg'
+                )
+            except Exception as e:
+                print(f"Error saving detection to DB: {e}")
     
     return annotated_frame, detections
-
+    
+"""
 def live_stream_processor():
-    """Background thread to process ESP32 stream"""
+    "/"/"Background thread to process ESP32 stream"/"/"
     global live_stream_active, latest_detection
     
     print(f"🎥 Starting live stream from {STREAM_URL}")
@@ -195,6 +220,10 @@ def live_stream_processor():
     
     retry_count = 0
     max_retries = 5
+    
+    # 🆕 ADD THESE TWO LINES:
+    last_save_time = 0
+    SAVE_INTERVAL = 1000  
     
     while live_stream_active:
         try:
@@ -217,12 +246,20 @@ def live_stream_processor():
                 continue
             
             retry_count = 0
-            annotated_frame, detections = process_frame_yolo(frame)
+            
+            # 🆕 CHANGE THIS LINE - Pass save flag:
+            current_time = time.time()
+            should_save = (current_time - last_save_time) >= SAVE_INTERVAL
+            annotated_frame, detections = process_frame_yolo(frame, save_to_db=should_save)
+            
+            # 🆕 UPDATE save time if we saved:
+            if should_save and detections:
+                last_save_time = current_time
+                print(f"💾 Saved {len(detections)} detections to database")
             
             _, buffer = cv2.imencode('.jpg', annotated_frame, [cv2.IMWRITE_JPEG_QUALITY, 80])
             frame_base64 = base64.b64encode(buffer).decode('utf-8')
             
-                        
             # Prepare detection data
             if detections:
                 ready_count = sum(1 for d in detections if 'ready' in d['label'].lower() and 'not' not in d['label'].lower())
@@ -256,7 +293,287 @@ def live_stream_processor():
             time.sleep(2)
     
     cap.release()
+"""
 
+def live_stream_processor():
+    "/"/"Background thread to process emulator stream (no RTSP needed)"/"/"
+    global live_stream_active, latest_detection
+    
+    print("🎥 Starting live stream from Android Emulator")
+    print("   Make sure Android Emulator is running with Tapo app open")
+    socketio.emit('stream_status', {'status': 'starting', 'message': 'Looking for emulator...'})
+    
+    # Initialize emulator capture
+    try:
+        from adb_capture import ADBCapture
+        emulator = ADBCapture()
+    except ImportError as e:
+        print(f"❌ Failed to import EmulatorCapture: {e}")
+        socketio.emit('stream_status', {'status': 'error', 'message': 'Emulator capture module not found'})
+        return
+    
+    # Wait for emulator window to be found
+    max_attempts = 30
+    attempts = 0
+    test_frame = None
+    
+    while attempts < max_attempts and test_frame is None:
+        test_frame = emulator.capture_frame()
+        if test_frame is None:
+            attempts += 1
+            print(f"   Waiting for emulator window... ({attempts}/{max_attempts})")
+            time.sleep(1)
+    
+    if test_frame is None:
+        print("❌ Could not find Android Emulator window after 30 seconds")
+        print("   Please make sure:")
+        print("   1. Android Emulator is running")
+        print("   2. Tapo app is open in the emulator")
+        print("   3. The emulator window is visible (not minimized)")
+        socketio.emit('stream_status', {'status': 'error', 'message': 'Emulator window not found'})
+        return
+    
+    print(f"✅ Emulator window found successfully")
+    print(f"   Original frame size: {test_frame.shape[1]} x {test_frame.shape[0]}")
+    
+    # Target size for consistent display (matches your website's expectations)
+    TARGET_WIDTH = 640
+    TARGET_HEIGHT = 480
+    
+    # Stream settings
+    last_save_time = 0
+    SAVE_INTERVAL = 180  # Save to database every 1000 frames
+    frame_count = 0
+    
+    while live_stream_active:
+        try:
+            # Capture frame from emulator
+            frame = emulator.capture_frame()
+            
+            if frame is None:
+                print("Failed to capture emulator window. Make sure it's visible.")
+                time.sleep(0.5)
+                continue
+            
+            # Resize frame to match target dimensions
+            if frame.shape[1] != TARGET_WIDTH or frame.shape[0] != TARGET_HEIGHT:
+                frame = cv2.resize(frame, (TARGET_WIDTH, TARGET_HEIGHT))
+            
+            frame_count += 1
+            
+            # Process with YOLO (pass save flag based on frame count)
+            current_time = time.time()
+            should_save = (current_time - last_save_time) >= SAVE_INTERVAL
+            annotated_frame, detections = process_frame_yolo(frame, save_to_db=should_save)
+            
+            # Update save time if we saved
+            if should_save and detections:
+                last_save_time = current_time
+                print(f"💾 Saved {len(detections)} detections to database")
+            
+            # Encode to JPEG
+            _, buffer = cv2.imencode('.jpg', annotated_frame, [cv2.IMWRITE_JPEG_QUALITY, 80])
+            frame_base64 = base64.b64encode(buffer).decode('utf-8')
+            
+            # Prepare detection data
+            if detections:
+                ready_count = sum(1 for d in detections if 'ready' in d['label'].lower() and 'not' not in d['label'].lower())
+                not_ready_count = len(detections) - ready_count
+                
+                result = {
+                    "frame": f"data:image/jpeg;base64,{frame_base64}",
+                    "total_count": len(detections),
+                    "ready_count": ready_count,
+                    "not_ready_count": not_ready_count,
+                    "detections": detections,
+                    "timestamp": time.time()
+                }
+            else:
+                result = {
+                    "frame": f"data:image/jpeg;base64,{frame_base64}",
+                    "total_count": 0,
+                    "ready_count": 0,
+                    "not_ready_count": 0,
+                    "detections": [],
+                    "timestamp": time.time()
+                }
+            
+            latest_detection = result
+            socketio.emit('detection_update', result)
+            
+            # Control frame rate (adjust as needed)
+            time.sleep(0.033)  # ~30 FPS
+                        
+        except Exception as e:
+            print(f"Stream error: {e}")
+            import traceback
+            traceback.print_exc()
+            time.sleep(1)
+
+class LocalRTMPReader:
+    def __init__(self, rtmp_url="rtmp://localhost:1935/live/lettuce_feed"):
+        self.rtmp_url = rtmp_url
+        self.cap = None
+        self.running = False
+        self.thread = None
+        self.frame_count = 0
+        self.last_save_time = time.time()
+        self.SAVE_INTERVAL = 180  # Save to DB every 3 minutes
+        
+    def start(self):
+        if self.running:
+            print("⚠️ RTMP reader already running")
+            return
+            
+        self.running = True
+        self.thread = threading.Thread(target=self._read_stream, daemon=True)
+        self.thread.start()
+        print(f"📡 Started RTMP stream reader: {self.rtmp_url}")
+        
+    def stop(self):
+        self.running = False
+        if self.cap:
+            self.cap.release()
+        print("⏹️ RTMP reader stopped")
+            
+    def _read_stream(self):
+        global latest_detection
+        
+        # Try to connect to stream
+        connection_attempts = 0
+        max_attempts = 30
+        
+        while self.running and connection_attempts < max_attempts:
+            try:
+                print(f"🔄 Attempting to connect to RTMP stream... (attempt {connection_attempts + 1})")
+                self.cap = cv2.VideoCapture(self.rtmp_url)
+                
+                if self.cap.isOpened():
+                    print("✅ Connected to RTMP stream!")
+                    socketio.emit('stream_status', {'status': 'connected'})
+                    break
+                else:
+                    connection_attempts += 1
+                    time.sleep(2)
+                    
+            except Exception as e:
+                print(f"❌ Connection error: {e}")
+                connection_attempts += 1
+                time.sleep(2)
+        
+        if not self.cap or not self.cap.isOpened():
+            print("❌ Failed to connect to RTMP stream after 30 attempts")
+            socketio.emit('stream_status', {'status': 'error', 'message': 'Could not connect to OBS stream'})
+            return
+        
+        # Main processing loop
+        while self.running:
+            try:
+                ret, frame = self.cap.read()
+                
+                if not ret or frame is None:
+                    print("⚠️ Lost frame, reconnecting...")
+                    self.cap.release()
+                    time.sleep(2)
+                    self.cap = cv2.VideoCapture(self.rtmp_url)
+                    continue
+                
+                # Resize frame for consistent processing
+                if frame.shape[1] != 640 or frame.shape[0] != 480:
+                    frame = cv2.resize(frame, (640, 480))
+                
+                self.frame_count += 1
+                
+                # Process with YOLO
+                current_time = time.time()
+                should_save = (current_time - self.last_save_time) >= self.SAVE_INTERVAL
+                
+                annotated_frame, detections = process_frame_yolo(frame, save_to_db=should_save)
+                
+                if should_save and detections:
+                    self.last_save_time = current_time
+                    print(f"💾 Saved {len(detections)} detections to database")
+                
+                # Encode frame for web
+                _, buffer = cv2.imencode('.jpg', annotated_frame, [cv2.IMWRITE_JPEG_QUALITY, 80])
+                frame_base64 = base64.b64encode(buffer).decode('utf-8')
+                
+                # Calculate counts
+                ready_count = sum(1 for d in detections if 'ready' in d['label'].lower() and 'not' not in d['label'].lower())
+                not_ready_count = len(detections) - ready_count
+                
+                # Prepare result
+                result = {
+                    "frame": f"data:image/jpeg;base64,{frame_base64}",
+                    "total_count": len(detections),
+                    "ready_count": ready_count,
+                    "not_ready_count": not_ready_count,
+                    "detections": detections,
+                    "timestamp": time.time(),
+                    "fps": self._calculate_fps()
+                }
+                
+                latest_detection = result
+                socketio.emit('detection_update', result)
+                
+                # Small delay to control CPU usage
+                time.sleep(0.033)  # ~30 FPS max
+                
+            except Exception as e:
+                print(f"❌ Stream processing error: {e}")
+                import traceback
+                traceback.print_exc()
+                time.sleep(1)
+        
+        # Cleanup
+        if self.cap:
+            self.cap.release()
+    
+    def _calculate_fps(self):
+        """Simple FPS calculation"""
+        if not hasattr(self, '_last_fps_time'):
+            self._last_fps_time = time.time()
+            self._fps_counter = 0
+            return 0
+            
+        self._fps_counter += 1
+        elapsed = time.time() - self._last_fps_time
+        
+        if elapsed >= 1.0:
+            fps = self._fps_counter / elapsed
+            self._last_fps_time = time.time()
+            self._fps_counter = 0
+            return round(fps, 1)
+        return 0
+
+# Create global RTMP reader instance
+rtmp_reader = LocalRTMPReader()
+
+# Add new SocketIO handlers for RTMP control
+@socketio.on('start_rtmp_stream')
+def handle_start_rtmp():
+    """Start the RTMP stream reader"""
+    print("🔵 Received start_rtmp_stream event")
+    if not rtmp_reader.running:
+        rtmp_reader.start()
+        emit('stream_status', {'status': 'starting', 'message': 'Connecting to OBS...'})
+    else:
+        emit('stream_status', {'status': 'already_running'})
+
+@socketio.on('stop_rtmp_stream')
+def handle_stop_rtmp():
+    """Stop the RTMP stream reader"""
+    print("🔵 Received stop_rtmp_stream event")
+    rtmp_reader.stop()
+    emit('stream_status', {'status': 'stopped'})
+
+@socketio.on('check_rtmp_status')
+def handle_check_rtmp():
+    """Check if RTMP stream is active"""
+    emit('rtmp_status', {
+        'running': rtmp_reader.running,
+        'frame_count': rtmp_reader.frame_count
+    })
 
 # WEBSOCKET EVENTS
 @socketio.on('connect')
@@ -498,18 +815,17 @@ def get_sensor_data():
         return jsonify({'error': str(e)}), 500
 
 @app.route('/get-sensor-history', methods=['GET'])
-def get_sensor_history():
+def get_sensor_history_route():
     """Get historical sensor data for charts"""
     try:
         limit = request.args.get('limit', 100, type=int)
-        
-        # Return last N readings
+
         history = {
             'temperature': sensor_history['temperature'][-limit:],
             'humidity': sensor_history['humidity'][-limit:],
             'timestamps': sensor_history['timestamps'][-limit:]
         }
-        
+
         return jsonify(history)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -577,7 +893,7 @@ def check_automation():
     
     changes_made = False
     
-    # Fan automation (ON when temp >= 30°C)
+    # Fan automation (ON when temp >= 25°C)
     if temp is not None:
         should_activate_fan = temp >= TEMP_THRESHOLD
         if relay_states['fan'] != should_activate_fan:
@@ -750,10 +1066,10 @@ def get_detection_history():
         })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
-
+"""
 @app.route('/save-detection-image', methods=['POST'])
 def save_detection_image():
-    """Save images and labels for YOLO training"""
+    "/"/"Save images and labels for YOLO training"/"/"
     try:
         data = request.json
         
@@ -860,32 +1176,71 @@ def save_detection_image():
         import traceback
         traceback.print_exc()
         return jsonify({'status': 'error', 'message': str(e)}), 500
-    
+"""    
 
 @app.route('/reset-analytics', methods=['POST'])
 def reset_analytics():
-    """Reset all analytics data on server"""
-    global server_analytics_data
-    server_analytics_data = {
-        'readyCount': 0,
-        'notReadyCount': 0,
-        'totalDetections': 0,
-        'growthHistory': [],
-        'environmentData': []
+    """Reset ALL analytics data on server"""
+    global sensor_history, activity_logs, latest_detection, relay_states, pump_state
+    
+    # Reset sensor history (in-memory cache)
+    sensor_history = {
+        'temperature': [],
+        'humidity': [],
+        'timestamps': []
     }
     
-    # Delete saved analytics files
+    # Reset activity logs
+    activity_logs = []
+    
+    # Reset latest detection
+    latest_detection = None
+    
+    # Reset relay states to default (optional)
+    relay_states = {
+        'fan': False,
+        'light': False,
+        'pump': False
+    }
+    
+    # Reset pump state
+    pump_state = {
+        'last_activation': None,
+        'activation_end': None
+    }
+    
+    # Reset sensor_data timestamp (optional)
+    sensor_data['timestamp'] = None
+    
+    # Delete saved image files
     try:
         import shutil
+        # Clear training_data folder
+        if os.path.exists('training_data'):
+            shutil.rmtree('training_data')
+            os.makedirs('training_data/images', exist_ok=True)
+            os.makedirs('training_data/labels', exist_ok=True)
+            os.makedirs('training_data/annotated', exist_ok=True)
+        
+        # Clear analytics_data folder
         if os.path.exists('analytics_data'):
             shutil.rmtree('analytics_data')
             os.makedirs('analytics_data', exist_ok=True)
+            
     except Exception as e:
-        print(f"Error deleting analytics files: {e}")
+        print(f"Error deleting files: {e}")
     
-    print("📊 Analytics reset successfully")
-    return jsonify({'status': 'success', 'message': 'Analytics data reset'})
-
+    print("📊 Analytics reset successfully - ALL in-memory data cleared")
+    return jsonify({
+        'status': 'success', 
+        'message': 'All analytics data reset',
+        'reset_data': {
+            'sensor_history': 'cleared',
+            'activity_logs': 'cleared',
+            'latest_detection': 'cleared',
+            'relay_states': 'reset'
+        }
+    })
 
 @app.route('/get-pump-settings', methods=['GET'])
 def get_pump_settings():
@@ -925,7 +1280,7 @@ def api_sensor_history():
     hours = request.args.get('hours', 24, type=int)
     
     # Use the database function to get sensor history
-    data = get_sensor_history(hours)
+    data = database.get_sensor_history(hours)
     
     # Format the data for charts (if your frontend expects this format)
     formatted_data = {
@@ -982,6 +1337,98 @@ def api_relay_history():
     
     return jsonify(data)
 
+@app.route('/api/detections', methods=['GET'])
+def api_detections():
+    """Get ALL detections from database - REAL DATA"""
+    days = request.args.get('days', 30, type=int)
+    try:
+        import sqlite3
+        from database import DB_PATH
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        
+        # Get REAL detection data from your database
+        cursor.execute('''
+            SELECT id, timestamp, label, confidence, 
+                   bbox_x1, bbox_y1, bbox_x2, bbox_y2,
+                   health_status, health_confidence
+            FROM detections
+            WHERE timestamp >= datetime('now', '-{} days')
+            ORDER BY timestamp DESC
+        '''.format(days))
+        
+        rows = cursor.fetchall()
+        conn.close()
+        
+        # Convert to JSON
+        detections = []
+        for row in rows:
+            detections.append({
+                'id': row[0],
+                'timestamp': row[1],
+                'label': row[2],
+                'confidence': row[3],
+                'bbox': f'({row[4]},{row[5]},{row[6]},{row[7]})',
+                'health_status': row[8] or 'Unknown',
+                'health_confidence': row[9] or 0.0
+            })
+        
+        print(f"📊 Returning {len(detections)} real detections from database")
+        return jsonify(detections)
+        
+    except Exception as e:
+        print(f"❌ Error fetching detections: {e}")
+        return jsonify([]), 500
+
+@socketio.on('screen_frame')
+def handle_screen_frame(data):
+    """Receive screen capture frames from browser and process with YOLO"""
+    global latest_detection, last_save_time_screen, SAVE_INTERVAL
+    
+    try:
+        # Extract frame data
+        frame_data = data['frame'].split(',')[1]
+        frame_bytes = base64.b64decode(frame_data)
+        
+        # Convert to OpenCV format
+        nparr = np.frombuffer(frame_bytes, np.uint8)
+        frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+        
+        if frame is None:
+            return
+        
+        # Process with YOLO
+        current_time = time.time()
+        should_save = (current_time - last_save_time_screen) >= SAVE_INTERVAL
+        annotated_frame, detections = process_frame_yolo(frame, save_to_db=should_save)
+        
+        if should_save and detections:
+            last_save_time_screen = current_time
+            print(f"💾 Saved {len(detections)} detections")
+        
+        # Calculate counts
+        ready_count = sum(1 for d in detections if 'ready' in d['label'].lower() and 'not' not in d['label'].lower())
+        not_ready_count = len(detections) - ready_count
+        
+        # Send back to browser
+        _, buffer = cv2.imencode('.jpg', annotated_frame, [cv2.IMWRITE_JPEG_QUALITY, 80])
+        frame_base64 = base64.b64encode(buffer).decode('utf-8')
+        
+        result = {
+            "frame": f"data:image/jpeg;base64,{frame_base64}",
+            "total_count": len(detections),
+            "ready_count": ready_count,
+            "not_ready_count": not_ready_count,
+            "detections": detections,
+            "timestamp": time.time()
+        }
+        
+        latest_detection = result
+        emit('detection_update', result)
+        
+    except Exception as e:
+        print(f"Error processing screen frame: {e}")
+
 if __name__ == '__main__':
     print("\n" + "="*50)
     print("🥬 Lettuce Monitoring System - LIVE STREAM Edition")
@@ -991,7 +1438,4 @@ if __name__ == '__main__':
     print(f"📹 ESP32 Stream: {STREAM_URL}")
     print("✅ Open: http://localhost:5000")
     print("="*50 + "\n")
-
     socketio.run(app, debug=False, host='0.0.0.0', port=5000, allow_unsafe_werkzeug=True)
-
-
