@@ -46,7 +46,7 @@ ESP32_IP = "10.172.94.149"
 ESP32_SENSOR_URL = f"http://{ESP32_IP}:5000/get-sensor-data"    
 
 #Load YOLO (Readiness Detection)
-model_path = "home/ubuntu/lettuce_thesis/best.pt"
+model_path = "/home/ubuntu/lettuce_thesis/best.pt"
 
 try:
     model = YOLO(model_path)
