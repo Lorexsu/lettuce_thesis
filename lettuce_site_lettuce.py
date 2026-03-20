@@ -401,7 +401,7 @@ def live_stream_processor():
             time.sleep(1)
 
 class LocalRTMPReader:
-    def __init__(self, rtmp_url="rtmp://localhost:1935/live/lettuce_feed"):
+    def __init__(self, rtmp_url="rtmp://stream.lettucereadiness.bar/live/mystream"):
         self.rtmp_url = rtmp_url
         self.cap = None
         self.running = False
