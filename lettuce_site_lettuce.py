@@ -129,16 +129,6 @@ def process_frame_yolo(frame, save_to_db=False):
             conf = float(box.conf[0].item())
             label = results[0].names[cls_id]
             x1, y1, x2, y2 = box.xyxy[0].tolist()
-
-            # Size-based classification override
-            bbox_area = (x2 - x1) * (y2 - y1)
-            frame_area = frame.shape[0] * frame.shape[1]
-            area_ratio = bbox_area / frame_area
-            
-            # If detection is small (<5% of frame), likely NOT ready
-            if area_ratio < 0.02 and 'ready' in label.lower() and 'not' not in label.lower():
-                label = 'Not Ready to Harvest (small size)'
-                conf = conf * 0.8  # Lower confidence
             
             # Run health classification on detected lettuce
             health_status = 'Unknown'
