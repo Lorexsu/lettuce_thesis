@@ -109,6 +109,7 @@ latest_detection = None
 last_save_time_screen = 0
 SAVE_INTERVAL = 180  # 3 minutes
 SENSOR_SAVE_INTERVAL = 3600
+last_sensor_save_time = 0
 
 def process_frame_yolo(frame, save_to_db=False):
     """Process single frame with YOLO"""
