@@ -96,11 +96,15 @@ def save_sensor_reading(temperature, humidity, sensor_id='DHT11_001', location='
     try:
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
+
+        # Get Manila time (UTC+8)
+        manila_now = datetime.utcnow() + timedelta(hours=8)
+        timestamp_str = manila_now.strftime("%Y-%m-%d %H:%M:%S")
         
         cursor.execute('''
-            INSERT INTO sensor_readings (temperature, humidity, sensor_id, location)
-            VALUES (?, ?, ?, ?)
-        ''', (temperature, humidity, sensor_id, location))
+            INSERT INTO sensor_readings (timestamp, temperature, humidity, sensor_id, location)
+            VALUES (?, ?, ?, ?, ?)
+        ''', (timestamp_str, temperature, humidity, sensor_id, location))
         
         conn.commit()
         conn.close()
@@ -174,13 +178,17 @@ def save_detection(label, confidence, bbox, health_status='Unknown', health_conf
     try:
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
+
+        # Get Manila time (UTC+8)
+        manila_now = datetime.utcnow() + timedelta(hours=8)
+        timestamp_str = manila_now.strftime("%Y-%m-%d %H:%M:%S")
         
         cursor.execute('''
             INSERT INTO detections 
-            (label, confidence, bbox_x1, bbox_y1, bbox_x2, bbox_y2, 
+            (timestamp, label, confidence, bbox_x1, bbox_y1, bbox_x2, bbox_y2, 
              health_status, health_confidence, image_path)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (label, confidence, bbox['x1'], bbox['y1'], bbox['x2'], bbox['y2'],
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (timestamp_str, label, confidence, bbox['x1'], bbox['y1'], bbox['x2'], bbox['y2'],
               health_status, health_confidence, image_path))
         
         conn.commit()
@@ -266,11 +274,14 @@ def save_relay_event(relay_name, action, trigger_type, temperature=None, humidit
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
         
+        # Get Manila time (UTC+8)
+        manila_now = datetime.utcnow() + timedelta(hours=8)
+        timestamp_str = manila_now.strftime("%Y-%m-%d %H:%M:%S")
+        
         cursor.execute('''
-            INSERT INTO relay_events 
-            (relay_name, action, trigger_type, temperature, humidity)
-            VALUES (?, ?, ?, ?, ?)
-        ''', (relay_name, action, trigger_type, temperature, humidity))
+            INSERT INTO relay_events (timestamp, relay_name, action, trigger_type, temperature, humidity)
+            VALUES (?, ?, ?, ?, ?, ?)
+        ''', (timestamp_str, relay_name, action, trigger_type, temperature, humidity))
         
         conn.commit()
         conn.close()
