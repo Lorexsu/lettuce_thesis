@@ -15,3 +15,4 @@ numpy==1.26.4
 pandas==2.3.2
 timm==1.0.24
 gunicorn==21.2.0
+gevent==23.9.0
