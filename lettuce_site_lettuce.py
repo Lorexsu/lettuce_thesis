@@ -108,7 +108,7 @@ latest_detection = None
 
 last_save_time_screen = 0
 SAVE_INTERVAL = 180  # 3 minutes
-
+SENSOR_SAVE_INTERVAL = 3600
 
 def process_frame_yolo(frame, save_to_db=False):
     """Process single frame with YOLO"""
@@ -740,56 +740,50 @@ MAX_HISTORY_SIZE = 1000  # Store last 1000 readings
 
 @app.route('/sensor-data', methods=['POST'])
 def receive_sensor_data():
+    global last_sensor_save_time, sensor_data, sensor_history
+    
     try:
         data = request.json
+        current_time = time.time()
         
-        save_sensor_reading(
-            temperature=data.get('temperature'),
-            humidity=data.get('humidity')
-        )
+        # Only save to database every SENSOR_SAVE_INTERVAL seconds
+        if (current_time - last_sensor_save_time) >= SENSOR_SAVE_INTERVAL:
+            save_sensor_reading(
+                temperature=data.get('temperature'),
+                humidity=data.get('humidity')
+            )
+            last_sensor_save_time = current_time
+            print(f"💾 Sensor data saved to DB (sampled every {SENSOR_SAVE_INTERVAL}s)")
+        else:
+            print(f"⏭️ Skipping DB save - next save in {SENSOR_SAVE_INTERVAL - (current_time - last_sensor_save_time):.0f}s")
         
-        # Update current sensor data
+        # Still update current sensor data for display
         sensor_data['temperature'] = data.get('temperature')
         sensor_data['humidity'] = data.get('humidity')
         sensor_data['timestamp'] = data.get('timestamp')
         sensor_data['sensor_id'] = data.get('sensor_id', 'unknown')
         sensor_data['location'] = data.get('location', 'unknown')
         
-        # ✅ FIX: Validate timestamp before adding to history
+        # Still update the history for charts (but limit size)
         timestamp = data.get('timestamp', datetime.now().isoformat())
         
-        # Check if timestamp is from today and not stuck in the past
-        try:
-            ts_date = datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
-            now = datetime.now()
-            
-            # If timestamp is more than 1 hour old OR from a different day, use current time instead
-            if (now - ts_date).total_seconds() > 3600 or ts_date.date() != now.date():
-                print(f"⚠️ Old timestamp detected: {timestamp}, replacing with current time")
-                timestamp = now.isoformat()
-        except:
-            # If timestamp parsing fails, use current time
-            timestamp = datetime.now().isoformat()
-        
-        # Add to history with validated timestamp
-        if data.get('temperature') is not None:
+        # Add to history with validated timestamp (but only if we're saving to DB)
+        if data.get('temperature') is not None and (current_time - last_sensor_save_time) < SENSOR_SAVE_INTERVAL + 5:
             sensor_history['temperature'].append(data['temperature'])
             sensor_history['humidity'].append(data['humidity'])
             sensor_history['timestamps'].append(timestamp)
         
-        # Keep history size manageable
-        if len(sensor_history['temperature']) > MAX_HISTORY_SIZE:
-            sensor_history['temperature'] = sensor_history['temperature'][-MAX_HISTORY_SIZE:]
-            sensor_history['humidity'] = sensor_history['humidity'][-MAX_HISTORY_SIZE:]
-            sensor_history['timestamps'] = sensor_history['timestamps'][-MAX_HISTORY_SIZE:]
+        # Keep history size manageable (last 100 readings only)
+        if len(sensor_history['temperature']) > 720:
+            sensor_history['temperature'] = sensor_history['temperature'][-720:]
+            sensor_history['humidity'] = sensor_history['humidity'][-720:]
+            sensor_history['timestamps'] = sensor_history['timestamps'][-720:]
         
-        # Log the reception
-        print(f"📊 Sensor Data Received: {data['temperature']}°C, {data['humidity']}% at {timestamp}")
-        
-        # Run automation checks
+        # Run automation checks (this still happens with every reading)
         check_automation()
         
         return jsonify({'status': 'success', 'message': 'Data received'})
+        
     except Exception as e:
         print(f"Error receiving sensor data: {e}")
         return jsonify({'status': 'error', 'message': str(e)}), 500
