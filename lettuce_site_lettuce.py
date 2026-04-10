@@ -883,6 +883,7 @@ def check_automation():
         should_activate_fan = temp >= TEMP_THRESHOLD
         if relay_states['fan'] != should_activate_fan:
             relay_states['fan'] = should_activate_fan
+            save_relay_event(relay_name='fan', action='ON' if should_activate_fan else 'OFF', trigger_type='auto', temperature=temp, humidity=humid)
             log_activity('Fan', 'ON' if should_activate_fan else 'OFF', 
                         f'Temperature {temp}°C', temp, humid)
             print(f"🌀 Fan {'ON' if should_activate_fan else 'OFF'} - Temp: {temp}°C")
@@ -891,7 +892,7 @@ def check_automation():
     # Pump automation with timed activation and cooldown
     if humid is not None:
         from datetime import datetime, timedelta
-        now = datetime.now()
+        now = datetime.now(timezone(timedelta(hours=8)))
         
         # Check if pump is currently running (within 4 second window)
         if pump_state['activation_end'] and now < pump_state['activation_end']:
@@ -910,6 +911,7 @@ def check_automation():
                 relay_states['pump'] = True
                 pump_state['last_activation'] = now
                 pump_state['activation_end'] = now + timedelta(seconds=PUMP_DURATION)
+                save_relay_event(relay_name='pump', action='ON', trigger_type='auto', temperature=temp, humidity=humid)
                 log_activity('Pump', 'ON', f'Humidity {humid}% - Running for {PUMP_DURATION}s', temp, humid)
                 print(f"💧 Pump ACTIVATED - Humidity: {humid}% - Running for {PUMP_DURATION}s")
         
@@ -918,8 +920,8 @@ def check_automation():
             relay_states['pump'] = False
     
     # Light automation (ON from 5:50 PM to 6:00 AM)
-    from datetime import datetime
-    now = datetime.now()
+    from datetime import datetime, timezone, timedelta
+    now = datetime.now(timezone(timedelta(hours=8)))
     current_time = now.hour * 60 + now.minute
     start_time = LIGHT_START_HOUR * 60 + LIGHT_START_MINUTE
     end_time = LIGHT_END_HOUR * 60
@@ -931,6 +933,7 @@ def check_automation():
     
     if relay_states['light'] != should_activate_light:
         relay_states['light'] = should_activate_light
+        save_relay_event(relay_name='light', action='ON' if should_activate_light else 'OFF', trigger_type='auto', temperature=temp, humidity=humid)
         log_activity('Light', 'ON' if should_activate_light else 'OFF',
                     f'Scheduled time {now.strftime("%H:%M")}', temp, humid)
         print(f"💡 Light {'ON' if should_activate_light else 'OFF'} - Time: {now.strftime('%H:%M')}")
@@ -991,7 +994,7 @@ def set_relay():
         return jsonify({'status': 'error', 'message': str(e)}), 500
     
 @app.route('/log-activity', methods=['POST'])
-def log_activity():
+def log_activity_route():
     try:
         data = request.json
         log_entry = {
