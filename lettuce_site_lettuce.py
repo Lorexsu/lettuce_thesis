@@ -891,7 +891,7 @@ def check_automation():
     
     # Pump automation with timed activation and cooldown
     if humid is not None:
-        from datetime import datetime, timedelta
+        from datetime import datetime, timedelta, timezone
         now = datetime.now(timezone(timedelta(hours=8)))
         
         # Check if pump is currently running (within 4 second window)
