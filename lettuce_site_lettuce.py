@@ -437,7 +437,8 @@ class LocalRTMPReader:
         while self.running and connection_attempts < max_attempts:
             try:
                 print(f"🔄 Attempting to connect to RTMP stream... (attempt {connection_attempts + 1})")
-                self.cap = cv2.VideoCapture(self.rtmp_url)
+                self.cap = cv2.VideoCapture(self.rtmp_url), cv2.CAP_FFMPEG
+                self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
                 
                 if self.cap.isOpened():
                     print("✅ Connected to RTMP stream!")
@@ -466,7 +467,8 @@ class LocalRTMPReader:
                     print("⚠️ Lost frame, reconnecting...")
                     self.cap.release()
                     time.sleep(2)
-                    self.cap = cv2.VideoCapture(self.rtmp_url)
+                    self.cap = cv2.VideoCapture(self.rtmp_url), cv2.CAP_FFMPEG
+                    self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
                     continue
                 
                 # Resize frame for consistent processing
