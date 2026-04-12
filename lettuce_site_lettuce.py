@@ -123,7 +123,7 @@ def process_frame_yolo(frame, save_to_db=False):
     
     if len(results) > 0 and len(results[0].boxes) > 0:
         boxes = results[0].boxes
-        annotated_frame = results[0].plot()
+        annotated_frame = results[0].plot(labels=False, conf=False)
         
         for box in boxes:
             cls_id = int(box.cls[0].item())
