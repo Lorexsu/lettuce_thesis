@@ -109,213 +109,15 @@ latest_detection = None
 last_save_time_screen = 0
 SAVE_INTERVAL = 180  # 3 minutes
 SENSOR_SAVE_INTERVAL = 3600
+last_sensor_save_time = 0
 
-"""
 def process_frame_yolo(frame, save_to_db=False):
-    
+    """Process single frame with YOLO"""
     if frame is None:
         return None, []
     
-    results = model.predict(frame, conf=0.5, iou=0.4, agnostic_nms=True, max_det=50, verbose=False)
-""" 
-
-# Grid calibration constants
-GRID_COLS = 9          # 3 plates x 3 columns each
-GRID_ROWS = 6          # 6 rows per plate
-# Tray corners (each corner independent for perspective correction)
-TRAY_TL = (310, 120)   # top-left
-TRAY_TR = (1120, -20)   # top-right (higher than left)
-TRAY_BR = (1250, 625)  # bottom-right
-TRAY_BL = (300, 685)   # bottom-left
-# Plate separator 1 (left divider) - adjust top/bottom independently
-SEP1_TOP    = (563, 95)   # top point of first separator
-SEP1_BOTTOM = (565, 685)   # bottom point of first separator
-
-# Plate separator 2 (right divider) - adjust top/bottom independently
-SEP2_TOP    = (850, 45)   # top point of second separator
-SEP2_BOTTOM = (916, 665)   # bottom point of second separator
-# Bounding box for grid math
-TRAY_X1 = TRAY_TL[0]
-TRAY_Y1 = min(TRAY_TL[1], TRAY_TR[1])
-TRAY_X2 = TRAY_BR[0]
-TRAY_Y2 = TRAY_BR[1]
-
-SLOT_W_PX = (TRAY_X2 - TRAY_X1) / GRID_COLS   # (950-155)/9 = ~88px
-SLOT_H_PX = (TRAY_Y2 - TRAY_Y1) / GRID_ROWS   # (685-55)/6  = ~105px
-SLOT_W_CM = 124.968 / GRID_COLS                 # ~13.89cm per slot width
-SLOT_H_CM = 155.0 / GRID_ROWS                   # ~25.83cm per slot height
-PX_PER_CM_X = SLOT_W_PX / SLOT_W_CM            # ~7.92 px/cm
-PX_PER_CM_Y = SLOT_H_PX / SLOT_H_CM            # ~4.26 px/cm
-MAX_BOX_W_PX = SLOT_W_PX * 2.0                 # reject boxes wider than 2 slots
-MAX_BOX_H_PX = SLOT_H_PX * 2.0                # reject boxes taller than 2 slots
-# Size estimation using calibration (cm/px ratios)
-CM_PER_PX_X = 0.1315
-CM_PER_PX_Y = 0.2672
-MAX_BOX_W_PX = 9999
-MAX_BOX_H_PX = 9999
-
-
-def draw_grid(frame):
-    """Draw perspective-correct slot grid aligned to tray corners"""
-    overlay = frame.copy()
-
-    tl = np.array(TRAY_TL, dtype=float)
-    tr = np.array(TRAY_TR, dtype=float)
-    bl = np.array(TRAY_BL, dtype=float)
-    br = np.array(TRAY_BR, dtype=float)
-
-    # Draw horizontal lines (row dividers)
-    for row in range(GRID_ROWS + 1):
-        t = row / GRID_ROWS
-        left_pt  = (tl + t * (bl - tl)).astype(int)
-        right_pt = (tr + t * (br - tr)).astype(int)
-        cv2.line(overlay, tuple(left_pt), tuple(right_pt), (0, 0, 255), 1)
-
-    # Draw vertical lines using 3 zones defined by separators
-    # Zone anchors: TL->SEP1->SEP2->TR (top) and BL->SEP1->SEP2->BR (bottom)
-    zone_tops    = [tl, np.array(SEP1_TOP, dtype=float), np.array(SEP2_TOP, dtype=float), tr]
-    zone_bottoms = [bl, np.array(SEP1_BOTTOM, dtype=float), np.array(SEP2_BOTTOM, dtype=float), br]
-    cols_per_zone = GRID_COLS // 3  # 3 cols per plate
-
-    for zone in range(3):
-        for col in range(cols_per_zone + 1):
-            if zone > 0 and col == 0:
-                continue  # skip duplicate lines at zone boundary
-            t = col / cols_per_zone
-            top_pt    = (zone_tops[zone]    + t * (zone_tops[zone+1]    - zone_tops[zone])).astype(int)
-            bottom_pt = (zone_bottoms[zone] + t * (zone_bottoms[zone+1] - zone_bottoms[zone])).astype(int)
-            cv2.line(overlay, tuple(top_pt), tuple(bottom_pt), (0, 0, 255), 1)
-
-    # Draw plate separators (manually positioned)
-    cv2.line(overlay, SEP1_TOP, SEP1_BOTTOM, (255, 0, 0), 2)
-    cv2.line(overlay, SEP2_TOP, SEP2_BOTTOM, (255, 0, 0), 2)
-
-    # Draw tray border (green)
-    pts = np.array([TRAY_TL, TRAY_TR, TRAY_BR, TRAY_BL], np.int32)
-    cv2.polylines(overlay, [pts], isClosed=True, color=(0, 255, 0), thickness=2)
-
-    cv2.addWeighted(overlay, 0.0, frame, 1.0, 0, frame)
-    return frame
-
-def get_col_x_at_y(y):
-    """
-    Return the x positions of all 10 vertical dividers at a given y,
-    using the 4 zone anchors: TL, SEP1, SEP2, TR (top) and BL, SEP1, SEP2, BR (bottom).
-    """
-    tl = np.array(TRAY_TL, dtype=float)
-    tr = np.array(TRAY_TR, dtype=float)
-    bl = np.array(TRAY_BL, dtype=float)
-    br = np.array(TRAY_BR, dtype=float)
-
-    zone_tops    = [tl, np.array(SEP1_TOP, dtype=float),
-                    np.array(SEP2_TOP, dtype=float), tr]
-    zone_bottoms = [bl, np.array(SEP1_BOTTOM, dtype=float),
-                    np.array(SEP2_BOTTOM, dtype=float), br]
-
-    cols_per_zone = GRID_COLS // 3  # 3 per plate
-    x_positions = []
-
-    for zone in range(3):
-        zt = zone_tops[zone]
-        zb = zone_bottoms[zone]
-        zt_next = zone_tops[zone + 1]
-        zb_next = zone_bottoms[zone + 1]
-
-        # Interpolate left and right anchor x at this y
-        total_h_left  = zb[1] - zt[1]
-        total_h_right = zb_next[1] - zt_next[1]
-
-        t_left  = (y - zt[1])  / total_h_left  if total_h_left  != 0 else 0
-        t_right = (y - zt_next[1]) / total_h_right if total_h_right != 0 else 0
-
-        left_x  = zt[0]  + t_left  * (zb[0]  - zt[0])
-        right_x = zt_next[0] + t_right * (zb_next[0] - zt_next[0])
-
-        for col in range(cols_per_zone + (1 if zone == 2 else 0)):
-            t = col / cols_per_zone
-            x_positions.append(left_x + t * (right_x - left_x))
-
-    return x_positions  # 10 x values = 9 col boundaries
-
-def get_row_t_at_x(cx, cy):
-    """Return normalized row position (0.0 to 1.0) at a given point."""
-    tl = np.array(TRAY_TL, dtype=float)
-    tr = np.array(TRAY_TR, dtype=float)
-    bl = np.array(TRAY_BL, dtype=float)
-    br = np.array(TRAY_BR, dtype=float)
-
-    # Interpolate left and right edge y at cx
-    total_w = tr[0] - tl[0]
-    t_x = (cx - tl[0]) / total_w if total_w != 0 else 0
-    top_y = tl[1] + t_x * (tr[1] - tl[1])
-    bot_y = bl[1] + t_x * (br[1] - bl[1])
-
-    total_h = bot_y - top_y
-    return (cy - top_y) / total_h if total_h != 0 else 0
-
-def get_slot_position(cx, cy):
-    """
-    Return slot row, col (1-indexed), plate number, and snake-order plant number.
-    Uses perspective-correct zone interpolation aligned to separator lines.
-    Snake pattern: col 1 top->bottom, col 2 bottom->top, col 3 top->bottom, etc.
-    """
-    # Get col divider x positions at this cy
-    x_dividers = get_col_x_at_y(cy)
-
-    # Find which col the point falls in
-    col = 0
-    for i in range(1, len(x_dividers)):
-        if cx < x_dividers[i]:
-            col = i
-            break
-    else:
-        col = GRID_COLS
-
-    col = max(1, min(GRID_COLS, col))
-
-    # Get row using perspective-correct t
-    t_row = get_row_t_at_x(cx, cy)
-    t_row = max(0.0, min(0.9999, t_row))
-    row = int(t_row * GRID_ROWS) + 1
-    row = max(1, min(GRID_ROWS, row))
-
-    plate = (col - 1) // 3 + 1
-
-    # Snake numbering
-    col_idx = col - 1
-    if col_idx % 2 == 0:
-        slot_in_col = row - 1
-    else:
-        slot_in_col = GRID_ROWS - row
-
-    plant_number = col_idx * GRID_ROWS + slot_in_col + 1
-    return row, col, plate, plant_number    
-
-def process_frame_yolo(frame, save_to_db=False):
-    """
-    Process a single video frame through the YOLO detection pipeline.
+    results = model.predict(frame, conf=0.3, iou=0.3, verbose=False)
     
-    Steps:
-      1. Run YOLO inference with tuned conf/iou thresholds
-      2. Filter out oversized boxes (merged detections)
-      3. Estimate real-world size (cm) from bounding box + calibration
-      4. Assign each detection to a grid slot (row, col, plate)
-      5. Optionally save detections to the database
-      6. Overlay the slot grid on the annotated frame
-    
-    Args:
-        frame: BGR image (numpy array) from camera stream
-        save_to_db: if True, persist detections to SQLite via save_detection()
-    
-    Returns:
-        annotated_frame: frame with YOLO boxes + grid overlay
-        detections: list of detection dicts with size and slot info
-    """
-    if frame is None:
-        return None, []
-    
-    results = model.predict(frame, conf=0.35, iou=5, agnostic_nms=True, max_det=54, verbose=False)  
-
     detections = []
     annotated_frame = frame.copy()
     
@@ -328,47 +130,7 @@ def process_frame_yolo(frame, save_to_db=False):
             conf = float(box.conf[0].item())
             label = results[0].names[cls_id]
             x1, y1, x2, y2 = box.xyxy[0].tolist()
-
-            # Filter oversized boxes (likely merged detections)
-            box_w_px = x2 - x1
-            box_h_px = y2 - y1
             
-            # Real-world size estimation
-            width_cm  = round(box_w_px / PX_PER_CM_X, 1)
-            height_cm = round(box_h_px / PX_PER_CM_Y, 1)
-            diameter_cm = round((width_cm + height_cm) / 2, 1)
-            area_cm2  = round(width_cm * height_cm, 1)
-            
-            # Slot position
-            cx = (x1 + x2) / 2
-            cy = (y1 + y2) / 2
-            slot_row, slot_col, plate_num, plant_number = get_slot_position(cx, cy)
-
-
-            box_w_px = x2 - x1
-            box_h_px = y2 - y1
-
-            # Skip boxes larger than one slot (merged/overlapping detections)
-            if box_w_px > MAX_BOX_W_PX or box_h_px > MAX_BOX_H_PX * 2:
-                continue
-
-            # Calculate real size in cm
-            width_cm = round(box_w_px * CM_PER_PX_X, 1)
-            height_cm = round(box_h_px * CM_PER_PX_Y, 1)
-            diameter_cm = round((width_cm + height_cm) / 2, 1)
-            area_cm2 = round(width_cm * height_cm, 1)
-
-            """
-            # Size-based classification override
-            bbox_area = (x2 - x1) * (y2 - y1)
-            frame_area = frame.shape[0] * frame.shape[1]
-            area_ratio = bbox_area / frame_area
-            
-            # If detection is small (<5% of frame), likely NOT ready
-            if area_ratio < 0.02 and 'ready' in label.lower() and 'not' not in label.lower():
-                label = 'Not Ready to Harvest (small size)'
-                conf = conf * 0.8  # Lower confidence
-            """
             # Run health classification on detected lettuce
             health_status = 'Unknown'
             health_confidence = 0.0
@@ -408,15 +170,7 @@ def process_frame_yolo(frame, save_to_db=False):
                 'confidence': conf,
                 'bbox': {'x1': x1, 'y1': y1, 'x2': x2, 'y2': y2},
                 'health_status': health_status,
-                'health_confidence': health_confidence,
-                'width_cm': width_cm,
-                'height_cm': height_cm,
-                'diameter_cm': diameter_cm,
-                'area_cm2': area_cm2,
-                'slot_row': slot_row,
-                'slot_col': slot_col,
-                'plate_num': plate_num,
-                'plant_number': plant_number
+                'health_confidence': health_confidence
             }
             detections.append(detection)
             
@@ -435,9 +189,6 @@ def process_frame_yolo(frame, save_to_db=False):
             except Exception as e:
                 print(f"Error saving detection to DB: {e}")
     
-
-    # Draw grid overlay on final frame
-    annotated_frame = draw_grid(annotated_frame)
     return annotated_frame, detections
     
 """
@@ -686,7 +437,8 @@ class LocalRTMPReader:
         while self.running and connection_attempts < max_attempts:
             try:
                 print(f"🔄 Attempting to connect to RTMP stream... (attempt {connection_attempts + 1})")
-                self.cap = cv2.VideoCapture(self.rtmp_url)
+                self.cap = cv2.VideoCapture(self.rtmp_url, cv2.CAP_FFMPEG)
+                self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
                 
                 if self.cap.isOpened():
                     print("✅ Connected to RTMP stream!")
@@ -715,15 +467,14 @@ class LocalRTMPReader:
                     print("⚠️ Lost frame, reconnecting...")
                     self.cap.release()
                     time.sleep(2)
-                    self.cap = cv2.VideoCapture(self.rtmp_url)
+                    self.cap = cv2.VideoCapture(self.rtmp_url, cv2.CAP_FFMPEG)
+                    self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
                     continue
                 
                 # Resize frame for consistent processing
-                #if frame.shape[1] != 640 or frame.shape[0] != 480:
-                    #frame = cv2.resize(frame, (640, 480))
-
-                if frame.shape[1] != 1280 or frame.shape[0] != 720:
-                    frame = cv2.resize(frame, (1280, 720))
+                if frame.shape[1] != 640 or frame.shape[0] != 480:
+                    frame = cv2.resize(frame, (640, 480))
+                
                 self.frame_count += 1
                 
                 # Process with YOLO
@@ -1113,11 +864,6 @@ PUMP_COOLDOWN = 3600  # seconds (1 hour)
 LIGHT_START_HOUR = 18  # 6 PM
 LIGHT_START_MINUTE = 0
 LIGHT_END_HOUR = 6     # 6 AM next day
-FAN_RUN_DURATION = 5 * 60      # 5 minutes ON
-FAN_COOLDOWN_DURATION = 30 * 60 # 30 minutes cooldown
-
-fan_last_on_time = 0
-fan_in_cooldown = False
 
 # Pump timing state
 pump_state = {
@@ -1127,49 +873,28 @@ pump_state = {
 
 def check_automation():
     """Check sensor data and update relays based on rules"""
-    global relay_states, fan_last_on_time, fan_in_cooldown
+    global relay_states
     
     temp = sensor_data.get('temperature')
     humid = sensor_data.get('humidity')
     
     changes_made = False
     
-    # Fan automation with run duration and cooldown
+    # Fan automation (ON when temp >= 25°C)
     if temp is not None:
-        now_ts = time.time()
         should_activate_fan = temp >= TEMP_THRESHOLD
-
-        if should_activate_fan:
-            if fan_in_cooldown:
-                if now_ts - fan_last_on_time >= FAN_COOLDOWN_DURATION:
-                    fan_in_cooldown = False
-                    print(f"🌀 Fan cooldown ended")
-                else:
-                    remaining = int(FAN_COOLDOWN_DURATION - (now_ts - fan_last_on_time))
-                    print(f"🌀 Fan in cooldown - {remaining}s remaining")
-                    should_activate_fan = False
-            else:
-                if relay_states['fan']:
-                    if now_ts - fan_last_on_time >= FAN_RUN_DURATION:
-                        should_activate_fan = False
-                        fan_in_cooldown = True
-                        print(f"🌀 Fan run duration reached - entering cooldown")
-                else:
-                    fan_last_on_time = now_ts
-
         if relay_states['fan'] != should_activate_fan:
             relay_states['fan'] = should_activate_fan
-            log_activity('Fan', 'ON' if should_activate_fan else 'OFF',
+            save_relay_event(relay_name='fan', action='ON' if should_activate_fan else 'OFF', trigger_type='auto', temperature=temp, humidity=humid)
+            log_activity('Fan', 'ON' if should_activate_fan else 'OFF', 
                         f'Temperature {temp}°C', temp, humid)
-            save_relay_event(relay_name='fan', action='ON' if should_activate_fan else 'OFF',
-                           trigger_type='auto', temperature=temp, humidity=humid)
             print(f"🌀 Fan {'ON' if should_activate_fan else 'OFF'} - Temp: {temp}°C")
             changes_made = True
     
     # Pump automation with timed activation and cooldown
     if humid is not None:
-        from datetime import datetime, timedelta
-        now = datetime.now()
+        from datetime import datetime, timedelta, timezone
+        now = datetime.now(timezone(timedelta(hours=8)))
         
         # Check if pump is currently running (within 4 second window)
         if pump_state['activation_end'] and now < pump_state['activation_end']:
@@ -1188,6 +913,7 @@ def check_automation():
                 relay_states['pump'] = True
                 pump_state['last_activation'] = now
                 pump_state['activation_end'] = now + timedelta(seconds=PUMP_DURATION)
+                save_relay_event(relay_name='pump', action='ON', trigger_type='auto', temperature=temp, humidity=humid)
                 log_activity('Pump', 'ON', f'Humidity {humid}% - Running for {PUMP_DURATION}s', temp, humid)
                 print(f"💧 Pump ACTIVATED - Humidity: {humid}% - Running for {PUMP_DURATION}s")
         
@@ -1196,8 +922,8 @@ def check_automation():
             relay_states['pump'] = False
     
     # Light automation (ON from 5:50 PM to 6:00 AM)
-    from datetime import datetime
-    now = datetime.now()
+    from datetime import datetime, timezone, timedelta
+    now = datetime.now(timezone(timedelta(hours=8)))
     current_time = now.hour * 60 + now.minute
     start_time = LIGHT_START_HOUR * 60 + LIGHT_START_MINUTE
     end_time = LIGHT_END_HOUR * 60
@@ -1209,6 +935,7 @@ def check_automation():
     
     if relay_states['light'] != should_activate_light:
         relay_states['light'] = should_activate_light
+        save_relay_event(relay_name='light', action='ON' if should_activate_light else 'OFF', trigger_type='auto', temperature=temp, humidity=humid)
         log_activity('Light', 'ON' if should_activate_light else 'OFF',
                     f'Scheduled time {now.strftime("%H:%M")}', temp, humid)
         print(f"💡 Light {'ON' if should_activate_light else 'OFF'} - Time: {now.strftime('%H:%M')}")
@@ -1269,7 +996,7 @@ def set_relay():
         return jsonify({'status': 'error', 'message': str(e)}), 500
     
 @app.route('/log-activity', methods=['POST'])
-def log_activity():
+def log_activity_route():
     try:
         data = request.json
         log_entry = {
