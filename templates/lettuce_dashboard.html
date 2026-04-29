@@ -1834,21 +1834,39 @@ window.addEventListener('load', () => {
         return;
       }
 
-      listEl.innerHTML = detections.map(det => {
+      listEl.innerHTML = detections.map((det, i) => {
         const isReady = det.label.toLowerCase().includes('ready') && !det.label.toLowerCase().includes('not');
+        const hasSize = det.width_cm !== undefined;
         return `
           <div style="padding: 1.2rem; margin-bottom: 1rem; background: white; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.06); border-left: 4px solid ${isReady ? '#4caf50' : '#ff9800'};">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.6rem;">
               <span style="font-weight: 600; font-size: 1.05rem; color: #2c3e50;">
-                ${isReady ? '✅' : '🌱'} ${det.label}
+                ${isReady ? '✅' : '🌱'} Plant #${det.plant_number || (i + 1)}
               </span>
               <span style="background: #e8f5e9; color: #2e7d32; padding: 0.35rem 0.75rem; border-radius: 12px; font-size: 0.9rem; font-weight: 600;">
                 ${(det.confidence * 100).toFixed(1)}%
               </span>
             </div>
+            <div style="font-size: 0.85rem; color: #6c757d; margin-bottom: 0.4rem;">
+              ${isReady ? 'Ready to Harvest' : 'Not Ready'} 
+              ${det.plant_number ? `· Plant #${det.plant_number} — Plate ${det.plate_num}, Row ${det.slot_row}, Col ${det.slot_col}` : ''}
+            </div>
+            ${hasSize ? `
+              <div style="display: flex; gap: 1rem; margin-top: 0.5rem; flex-wrap: wrap;">
+                <span style="font-size: 0.85rem; background: #e3f2fd; color: #1565c0; padding: 0.2rem 0.6rem; border-radius: 6px;">
+                  📏 ${det.width_cm} × ${det.height_cm} cm
+                </span>
+                <span style="font-size: 0.85rem; background: #f3e5f5; color: #6a1b9a; padding: 0.2rem 0.6rem; border-radius: 6px;">
+                  ⌀ ${det.diameter_cm} cm
+                </span>
+                <span style="font-size: 0.85rem; background: #fff8e1; color: #e65100; padding: 0.2rem 0.6rem; border-radius: 6px;">
+                  📐 ${det.area_cm2} cm²
+                </span>
+              </div>
+            ` : ''}
             ${det.health_status ? `
-              <div style="font-size: 0.95rem; color: #555;">
-                Health: <strong>${det.health_status}</strong> 
+              <div style="font-size: 0.9rem; color: #555; margin-top: 0.5rem;">
+                Health: <strong>${det.health_status}</strong>
                 <span style="color: #6c757d;">(${(det.health_confidence * 100).toFixed(1)}%)</span>
               </div>
             ` : ''}
