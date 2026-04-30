@@ -111,12 +111,197 @@ SAVE_INTERVAL = 180  # 3 minutes
 SENSOR_SAVE_INTERVAL = 3600
 last_sensor_save_time = 0
 
+# ── Grid calibration constants ──────────────────────────────────────────────
+GRID_COLS = 9          # 3 plates x 3 columns each
+GRID_ROWS = 6          # 6 rows per plate
+
+# Tray corners (each corner independent for perspective correction)
+TRAY_TL = (310, 120)   # top-left
+TRAY_TR = (1120, -20)  # top-right (higher than left due to camera angle)
+TRAY_BR = (1250, 625)  # bottom-right
+TRAY_BL = (300, 685)   # bottom-left
+
+# Plate separator 1 (left divider) - adjust top/bottom independently
+SEP1_TOP    = (563, 95)    # top point of first separator
+SEP1_BOTTOM = (565, 685)   # bottom point of first separator
+
+# Plate separator 2 (right divider) - adjust top/bottom independently
+SEP2_TOP    = (850, 45)    # top point of second separator
+SEP2_BOTTOM = (916, 665)   # bottom point of second separator
+
+# Bounding box for grid math (derived from corners)
+TRAY_X1 = TRAY_TL[0]
+TRAY_Y1 = min(TRAY_TL[1], TRAY_TR[1])
+TRAY_X2 = TRAY_BR[0]
+TRAY_Y2 = TRAY_BR[1]
+
+SLOT_W_PX = (TRAY_X2 - TRAY_X1) / GRID_COLS   # pixels per slot width
+SLOT_H_PX = (TRAY_Y2 - TRAY_Y1) / GRID_ROWS   # pixels per slot height
+SLOT_W_CM = 124.968 / GRID_COLS                 # ~13.89 cm per slot width
+SLOT_H_CM = 155.0   / GRID_ROWS                 # ~25.83 cm per slot height
+PX_PER_CM_X = SLOT_W_PX / SLOT_W_CM            # px/cm horizontal
+PX_PER_CM_Y = SLOT_H_PX / SLOT_H_CM            # px/cm vertical
+
+# Fan cooldown state
+FAN_RUN_DURATION    = 5  * 60   # 5 minutes ON
+FAN_COOLDOWN_DURATION = 30 * 60 # 30 minutes cooldown
+fan_last_on_time = 0
+fan_in_cooldown  = False
+
+
+def draw_grid(frame):
+    """
+    Draw a perspective-correct slot grid on the frame aligned to physical tray corners.
+    Grid is invisible (alpha=0) — used only for position reference.
+    """
+    overlay = frame.copy()
+
+    tl = np.array(TRAY_TL, dtype=float)
+    tr = np.array(TRAY_TR, dtype=float)
+    bl = np.array(TRAY_BL, dtype=float)
+    br = np.array(TRAY_BR, dtype=float)
+
+    # Horizontal lines (row dividers)
+    for row in range(GRID_ROWS + 1):
+        t = row / GRID_ROWS
+        left_pt  = (tl + t * (bl - tl)).astype(int)
+        right_pt = (tr + t * (br - tr)).astype(int)
+        cv2.line(overlay, tuple(left_pt), tuple(right_pt), (0, 0, 255), 1)
+
+    # Vertical lines using 3 zones defined by plate separators
+    zone_tops    = [tl, np.array(SEP1_TOP,    dtype=float), np.array(SEP2_TOP,    dtype=float), tr]
+    zone_bottoms = [bl, np.array(SEP1_BOTTOM, dtype=float), np.array(SEP2_BOTTOM, dtype=float), br]
+    cols_per_zone = GRID_COLS // 3
+
+    for zone in range(3):
+        for col in range(cols_per_zone + 1):
+            if zone > 0 and col == 0:
+                continue  # avoid duplicate lines at zone boundaries
+            t = col / cols_per_zone
+            top_pt    = (zone_tops[zone]    + t * (zone_tops[zone+1]    - zone_tops[zone])).astype(int)
+            bottom_pt = (zone_bottoms[zone] + t * (zone_bottoms[zone+1] - zone_bottoms[zone])).astype(int)
+            cv2.line(overlay, tuple(top_pt), tuple(bottom_pt), (0, 0, 255), 1)
+
+    # Plate separators (blue)
+    cv2.line(overlay, SEP1_TOP, SEP1_BOTTOM, (255, 0, 0), 2)
+    cv2.line(overlay, SEP2_TOP, SEP2_BOTTOM, (255, 0, 0), 2)
+
+    # Tray border (green)
+    pts = np.array([TRAY_TL, TRAY_TR, TRAY_BR, TRAY_BL], np.int32)
+    cv2.polylines(overlay, [pts], isClosed=True, color=(0, 255, 0), thickness=2)
+
+    # alpha=0.0 → grid is invisible but position logic still works
+    cv2.addWeighted(overlay, 0.0, frame, 1.0, 0, frame)
+    return frame
+
+
+def get_col_x_at_y(y):
+    """
+    Return x-positions of all 10 vertical grid dividers at a given y,
+    using perspective-interpolated zone anchors (TL→SEP1→SEP2→TR).
+    """
+    tl = np.array(TRAY_TL, dtype=float)
+    tr = np.array(TRAY_TR, dtype=float)
+    bl = np.array(TRAY_BL, dtype=float)
+    br = np.array(TRAY_BR, dtype=float)
+
+    zone_tops    = [tl, np.array(SEP1_TOP,    dtype=float), np.array(SEP2_TOP,    dtype=float), tr]
+    zone_bottoms = [bl, np.array(SEP1_BOTTOM, dtype=float), np.array(SEP2_BOTTOM, dtype=float), br]
+    cols_per_zone = GRID_COLS // 3
+    x_positions = []
+
+    for zone in range(3):
+        zt, zb         = zone_tops[zone],     zone_bottoms[zone]
+        zt_next, zb_next = zone_tops[zone+1], zone_bottoms[zone+1]
+
+        total_h_left  = zb[1]      - zt[1]
+        total_h_right = zb_next[1] - zt_next[1]
+        t_left  = (y - zt[1])      / total_h_left  if total_h_left  != 0 else 0
+        t_right = (y - zt_next[1]) / total_h_right if total_h_right != 0 else 0
+
+        left_x  = zt[0]      + t_left  * (zb[0]      - zt[0])
+        right_x = zt_next[0] + t_right * (zb_next[0] - zt_next[0])
+
+        for col in range(cols_per_zone + (1 if zone == 2 else 0)):
+            t = col / cols_per_zone
+            x_positions.append(left_x + t * (right_x - left_x))
+
+    return x_positions  # 10 values → 9 column boundaries
+
+
+def get_row_t_at_x(cx, cy):
+    """Return normalized vertical position (0.0=top, 1.0=bottom) at (cx, cy)."""
+    tl = np.array(TRAY_TL, dtype=float)
+    tr = np.array(TRAY_TR, dtype=float)
+    bl = np.array(TRAY_BL, dtype=float)
+    br = np.array(TRAY_BR, dtype=float)
+
+    total_w = tr[0] - tl[0]
+    t_x     = (cx - tl[0]) / total_w if total_w != 0 else 0
+    top_y   = tl[1] + t_x * (tr[1] - tl[1])
+    bot_y   = bl[1] + t_x * (br[1] - bl[1])
+    total_h = bot_y - top_y
+    return (cy - top_y) / total_h if total_h != 0 else 0
+
+
+def get_slot_position(cx, cy):
+    """
+    Return (row, col, plate, plant_number) for a detection center point.
+
+    Columns use perspective-correct zone interpolation aligned to separator lines.
+    Snake-pattern numbering: odd columns top→bottom, even columns bottom→top.
+      Col 1 top→bottom: plants 1–6
+      Col 2 bottom→top: plants 7–12
+      Col 3 top→bottom: plants 13–18  … up to plant 54
+    """
+    x_dividers = get_col_x_at_y(cy)
+
+    col = GRID_COLS  # default to last col
+    for i in range(1, len(x_dividers)):
+        if cx < x_dividers[i]:
+            col = i
+            break
+
+    col = max(1, min(GRID_COLS, col))
+
+    t_row = get_row_t_at_x(cx, cy)
+    t_row = max(0.0, min(0.9999, t_row))
+    row   = int(t_row * GRID_ROWS) + 1
+    row   = max(1, min(GRID_ROWS, row))
+
+    plate   = (col - 1) // 3 + 1
+    col_idx = col - 1
+
+    # Snake numbering
+    slot_in_col = (row - 1) if col_idx % 2 == 0 else (GRID_ROWS - row)
+    plant_number = col_idx * GRID_ROWS + slot_in_col + 1
+
+    return row, col, plate, plant_number
+
+
 def process_frame_yolo(frame, save_to_db=False):
-    """Process single frame with YOLO"""
+    """
+    Process a single video frame through the YOLO detection pipeline.
+
+    Steps:
+      1. Run YOLO inference (conf=0.35, iou=0.4, agnostic NMS)
+      2. Estimate real-world size (cm) from bounding box + calibration ratios
+      3. Assign each detection to a perspective-correct grid slot
+      4. Optionally save detections to SQLite via save_detection()
+      5. Overlay the invisible grid on the annotated frame
+
+    Args:
+        frame     : BGR numpy array from camera stream
+        save_to_db: if True, persist detections to database
+
+    Returns:
+        annotated_frame : frame with YOLO boxes + grid overlay
+        detections      : list of detection dicts with size and slot info
+    """
     if frame is None:
         return None, []
-    
-    results = model.predict(frame, conf=0.3, iou=0.3, verbose=False)
+
+    results = model.predict(frame, conf=0.35, iou=0.4, agnostic_nms=True, max_det=54, verbose=False)
     
     detections = []
     annotated_frame = frame.copy()
@@ -130,7 +315,20 @@ def process_frame_yolo(frame, save_to_db=False):
             conf = float(box.conf[0].item())
             label = results[0].names[cls_id]
             x1, y1, x2, y2 = box.xyxy[0].tolist()
-            
+
+            # Real-world size estimation
+            box_w_px    = x2 - x1
+            box_h_px    = y2 - y1
+            width_cm    = round(box_w_px / PX_PER_CM_X, 1)
+            height_cm   = round(box_h_px / PX_PER_CM_Y, 1)
+            diameter_cm = round((width_cm + height_cm) / 2, 1)
+            area_cm2    = round(width_cm * height_cm, 1)
+
+            # Grid slot and plant number (perspective-correct snake pattern)
+            cx = (x1 + x2) / 2
+            cy = (y1 + y2) / 2
+            slot_row, slot_col, plate_num, plant_number = get_slot_position(cx, cy)
+
             # Run health classification on detected lettuce
             health_status = 'Unknown'
             health_confidence = 0.0
@@ -164,17 +362,25 @@ def process_frame_yolo(frame, save_to_db=False):
                     print(f"Health classification error: {e}")
                     health_status = 'Error'
             
-            # Create detection dictionary
+            # Create detection dictionary with size and grid position
             detection = {
                 'label': label,
                 'confidence': conf,
                 'bbox': {'x1': x1, 'y1': y1, 'x2': x2, 'y2': y2},
                 'health_status': health_status,
-                'health_confidence': health_confidence
+                'health_confidence': health_confidence,
+                'width_cm': width_cm,
+                'height_cm': height_cm,
+                'diameter_cm': diameter_cm,
+                'area_cm2': area_cm2,
+                'slot_row': slot_row,
+                'slot_col': slot_col,
+                'plate_num': plate_num,
+                'plant_number': plant_number
             }
             detections.append(detection)
-            
-    # Save to database (moved outside the inner loop but still inside box loop)
+
+    # Save to database
     if save_to_db:
         for det in detections:
             try:
@@ -188,7 +394,9 @@ def process_frame_yolo(frame, save_to_db=False):
                 )
             except Exception as e:
                 print(f"Error saving detection to DB: {e}")
-    
+
+    # Draw grid overlay on final frame (invisible - alpha=0)
+    annotated_frame = draw_grid(annotated_frame)
     return annotated_frame, detections
     
 """
@@ -471,9 +679,9 @@ class LocalRTMPReader:
                     self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
                     continue
                 
-                # Resize frame for consistent processing
-                if frame.shape[1] != 640 or frame.shape[0] != 480:
-                    frame = cv2.resize(frame, (640, 480))
+                # Resize frame for consistent processing (1280x720 matches grid calibration)
+                if frame.shape[1] != 1280 or frame.shape[0] != 720:
+                    frame = cv2.resize(frame, (1280, 720))
                 
                 self.frame_count += 1
                 
@@ -872,21 +1080,41 @@ pump_state = {
 }
 
 def check_automation():
-    """Check sensor data and update relays based on rules"""
-    global relay_states
+    """Check sensor data and update relays based on automation rules"""
+    global relay_states, fan_last_on_time, fan_in_cooldown
     
     temp = sensor_data.get('temperature')
     humid = sensor_data.get('humidity')
     
     changes_made = False
     
-    # Fan automation (ON when temp >= 25°C)
+    # Fan automation with run duration and cooldown
     if temp is not None:
+        now_ts = time.time()
         should_activate_fan = temp >= TEMP_THRESHOLD
+
+        if should_activate_fan:
+            if fan_in_cooldown:
+                if now_ts - fan_last_on_time >= FAN_COOLDOWN_DURATION:
+                    fan_in_cooldown = False
+                    print(f"🌀 Fan cooldown ended")
+                else:
+                    remaining = int(FAN_COOLDOWN_DURATION - (now_ts - fan_last_on_time))
+                    print(f"🌀 Fan in cooldown - {remaining}s remaining")
+                    should_activate_fan = False
+            else:
+                if relay_states['fan']:
+                    if now_ts - fan_last_on_time >= FAN_RUN_DURATION:
+                        should_activate_fan = False
+                        fan_in_cooldown = True
+                        print(f"🌀 Fan run duration reached - entering cooldown")
+                else:
+                    fan_last_on_time = now_ts
+
         if relay_states['fan'] != should_activate_fan:
             relay_states['fan'] = should_activate_fan
             save_relay_event(relay_name='fan', action='ON' if should_activate_fan else 'OFF', trigger_type='auto', temperature=temp, humidity=humid)
-            log_activity('Fan', 'ON' if should_activate_fan else 'OFF', 
+            log_activity('Fan', 'ON' if should_activate_fan else 'OFF',
                         f'Temperature {temp}°C', temp, humid)
             print(f"🌀 Fan {'ON' if should_activate_fan else 'OFF'} - Temp: {temp}°C")
             changes_made = True
@@ -908,7 +1136,7 @@ def check_automation():
             print(f"💧 Pump COOLDOWN - {int(cooldown_remaining)}s remaining")
         
         # Check if should activate (threshold reached and not in cooldown)
-        elif humid > HUMIDITY_THRESHOLD:
+        elif humid <= HUMIDITY_THRESHOLD:
             if not relay_states['pump']:  # Only log on new activation
                 relay_states['pump'] = True
                 pump_state['last_activation'] = now
