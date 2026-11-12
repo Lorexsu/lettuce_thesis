@@ -6,7 +6,7 @@ import csv
 import glob
 import gzip
 
-DB_PATH = r'C:/Users/Rolex Jr/OneDrive/Desktop/lettuce_model_thesis/ui-for-lettuce-thesis-1.5/lettuce_farm.db'
+DB_PATH = 'lettuce_farm.db'
 
 def init_database():
     """Initialize database with all tables"""
