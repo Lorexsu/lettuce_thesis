@@ -2,8 +2,11 @@ import sqlite3
 from datetime import datetime, timedelta
 import json
 import os
+import csv
+import glob
+import gzip
 
-DB_PATH = 'lettuce_farm.db'
+DB_PATH = r'C:/Users/Rolex Jr/OneDrive/Desktop/lettuce_model_thesis/ui-for-lettuce-thesis-1.5/lettuce_farm.db'
 
 def init_database():
     """Initialize database with all tables"""
@@ -96,15 +99,11 @@ def save_sensor_reading(temperature, humidity, sensor_id='DHT11_001', location='
     try:
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
-
-        # Get Manila time (UTC+8)
-        manila_now = datetime.utcnow() + timedelta(hours=8)
-        timestamp_str = manila_now.strftime("%Y-%m-%d %H:%M:%S")
         
         cursor.execute('''
-            INSERT INTO sensor_readings (timestamp, temperature, humidity, sensor_id, location)
-            VALUES (?, ?, ?, ?, ?)
-        ''', (timestamp_str, temperature, humidity, sensor_id, location))
+            INSERT INTO sensor_readings (temperature, humidity, sensor_id, location)
+            VALUES (?, ?, ?, ?)
+        ''', (temperature, humidity, sensor_id, location))
         
         conn.commit()
         conn.close()
@@ -122,7 +121,7 @@ def get_sensor_history(hours=24):
         cursor.execute('''
             SELECT timestamp, temperature, humidity, sensor_id, location
             FROM sensor_readings
-            WHERE timestamp >= datetime('now', '-{} hours')
+            WHERE timestamp >= datetime((SELECT COALESCE(MAX(timestamp), datetime('now')) FROM sensor_readings), '-{} hours')
             ORDER BY timestamp ASC
         '''.format(hours))
         
@@ -178,17 +177,13 @@ def save_detection(label, confidence, bbox, health_status='Unknown', health_conf
     try:
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
-
-        # Get Manila time (UTC+8)
-        manila_now = datetime.utcnow() + timedelta(hours=8)
-        timestamp_str = manila_now.strftime("%Y-%m-%d %H:%M:%S")
         
         cursor.execute('''
             INSERT INTO detections 
-            (timestamp, label, confidence, bbox_x1, bbox_y1, bbox_x2, bbox_y2, 
+            (label, confidence, bbox_x1, bbox_y1, bbox_x2, bbox_y2, 
              health_status, health_confidence, image_path)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (timestamp_str, label, confidence, bbox['x1'], bbox['y1'], bbox['x2'], bbox['y2'],
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (label, confidence, bbox['x1'], bbox['y1'], bbox['x2'], bbox['y2'],
               health_status, health_confidence, image_path))
         
         conn.commit()
@@ -211,7 +206,7 @@ def get_detection_summary(days=30):
                 COUNT(*) as count,
                 AVG(confidence) as avg_confidence
             FROM detections
-            WHERE timestamp >= datetime('now', '-{} days')
+            WHERE timestamp >= datetime((SELECT COALESCE(MAX(timestamp), datetime('now')) FROM detections), '-{} days')
             GROUP BY DATE(timestamp), label
             ORDER BY date DESC
         '''.format(days))
@@ -274,14 +269,11 @@ def save_relay_event(relay_name, action, trigger_type, temperature=None, humidit
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
         
-        # Get Manila time (UTC+8)
-        manila_now = datetime.utcnow() + timedelta(hours=8)
-        timestamp_str = manila_now.strftime("%Y-%m-%d %H:%M:%S")
-        
         cursor.execute('''
-            INSERT INTO relay_events (timestamp, relay_name, action, trigger_type, temperature, humidity)
-            VALUES (?, ?, ?, ?, ?, ?)
-        ''', (timestamp_str, relay_name, action, trigger_type, temperature, humidity))
+            INSERT INTO relay_events 
+            (relay_name, action, trigger_type, temperature, humidity)
+            VALUES (?, ?, ?, ?, ?)
+        ''', (relay_name, action, trigger_type, temperature, humidity))
         
         conn.commit()
         conn.close()
@@ -299,7 +291,7 @@ def get_relay_history(days=7):
         cursor.execute('''
             SELECT timestamp, relay_name, action, trigger_type, temperature, humidity
             FROM relay_events
-            WHERE timestamp >= datetime('now', '-{} days')
+            WHERE timestamp >= datetime((SELECT COALESCE(MAX(timestamp), datetime('now')) FROM relay_events), '-{} days')
             ORDER BY timestamp DESC
         '''.format(days))
         
@@ -331,7 +323,7 @@ def get_relay_stats(days=7):
                 COUNT(*) as count,
                 trigger_type
             FROM relay_events
-            WHERE timestamp >= datetime('now', '-{} days')
+            WHERE timestamp >= datetime((SELECT COALESCE(MAX(timestamp), datetime('now')) FROM relay_events), '-{} days')
             GROUP BY relay_name, action, trigger_type
         '''.format(days))
         
@@ -366,7 +358,7 @@ def update_daily_summary(date=None):
             SELECT 
                 COUNT(*) as total,
                 SUM(CASE WHEN label LIKE '%Ready%' AND label NOT LIKE '%Not%' THEN 1 ELSE 0 END) as ready,
-                SUM(CASE WHEN label LIKE '%Not Ready%' OR label LIKE '%small size%' THEN 1 ELSE 0 END) as not_ready,
+                SUM(CASE WHEN label LIKE '%Not%Ready%' THEN 1 ELSE 0 END) as not_ready,
                 MAX(CASE WHEN label LIKE '%Ready%' AND label NOT LIKE '%Not%' THEN 1 ELSE 0 END) as peak_ready
             FROM detections
             WHERE DATE(timestamp) = ?
@@ -419,7 +411,7 @@ def get_daily_summaries(days=30):
                    avg_temperature, avg_humidity, peak_ready_count,
                    min_temperature, max_temperature, min_humidity, max_humidity
             FROM daily_summary
-            WHERE date >= date('now', '-{} days')
+            WHERE date >= date((SELECT COALESCE(MAX(date), date('now')) FROM daily_summary), '-{} days')
             ORDER BY date DESC
         '''.format(days))
         
@@ -532,10 +524,91 @@ def export_to_csv(table_name, output_file):
         print(f"❌ Error exporting to CSV: {e}")
         return False
 
+# ========================================
+# SEED DATA (CSV -> EMPTY TABLES, RUNS ON STARTUP)
+# ========================================
+SEED_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'seed_data')
+
+def _num(v):
+    return float(v) if v not in (None, '') else None
+
+def _seed_table(conn, table, pattern, sql, row_fn, batch=20000):
+    """Import newest seed_data/<pattern> (.csv or .csv.gz) only if table is empty"""
+    if conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0] > 0:
+        return 0
+    files = sorted(glob.glob(os.path.join(SEED_DIR, pattern)))
+    if not files:
+        return 0
+    path = files[-1]
+    opener = gzip.open if path.endswith('.gz') else open
+    total, rows, skipped = 0, [], 0
+    with opener(path, 'rt', newline='', encoding='utf-8-sig') as f:
+        for r in csv.DictReader(f):
+            try:
+                rows.append(row_fn(r))
+            except (ValueError, KeyError):
+                skipped += 1
+                continue
+            if len(rows) >= batch:
+                conn.executemany(sql, rows)
+                total += len(rows)
+                rows = []
+    if rows:
+        conn.executemany(sql, rows)
+        total += len(rows)
+    conn.commit()
+    print(f"🌱 Seeded {total:,} rows into {table} from {os.path.basename(path)}"
+          + (f" ({skipped} bad rows skipped)" if skipped else ""))
+    return total
+
+def _sensor_row(r):
+    return (int(r['id']), r['timestamp'], _num(r['temperature']), _num(r['humidity']),
+            r['sensor_id'], r['location'])
+
+def _relay_row(r):
+    return (int(r['id']), r['timestamp'], r['relay'], r['action'], r['trigger'],
+            _num(r['temperature']), _num(r['humidity']))
+
+def _detection_row(r):
+    x1, y1, x2, y2 = [float(v) for v in r['bbox'].strip('() ').split(',')]
+    return (int(r['id']), r['timestamp'], r['label'], _num(r['confidence']),
+            x1, y1, x2, y2, r['health_status'], _num(r['health_confidence']), '')
+
+def seed_database_from_csv():
+    """Fill EMPTY tables from seed_data/*.csv(.gz). Safe to run on every startup."""
+    if not os.path.isdir(SEED_DIR):
+        return
+    try:
+        conn = sqlite3.connect(DB_PATH, timeout=30)
+        try:
+            _seed_table(conn, 'sensor_readings', 'sensors*.csv*',
+                "INSERT OR IGNORE INTO sensor_readings (id, timestamp, temperature, humidity, sensor_id, location) VALUES (?,?,?,?,?,?)",
+                _sensor_row)
+            _seed_table(conn, 'relay_events', 'relays*.csv*',
+                "INSERT OR IGNORE INTO relay_events (id, timestamp, relay_name, action, trigger_type, temperature, humidity) VALUES (?,?,?,?,?,?,?)",
+                _relay_row)
+            _seed_table(conn, 'detections', 'detections*.csv*',
+                "INSERT OR IGNORE INTO detections (id, timestamp, label, confidence, bbox_x1, bbox_y1, bbox_x2, bbox_y2, health_status, health_confidence, image_path) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                _detection_row)
+            if conn.execute("SELECT COUNT(*) FROM daily_summary").fetchone()[0] == 0:
+                dates = sorted(r[0] for r in conn.execute(
+                    "SELECT DATE(timestamp) FROM detections UNION SELECT DATE(timestamp) FROM sensor_readings"
+                ) if r[0])
+                for d in dates:
+                    update_daily_summary(d)
+                if dates:
+                    print(f"🌱 Built daily_summary for {len(dates)} days")
+        finally:
+            conn.close()
+    except Exception as e:
+        print(f"❌ Seed error: {e}")
+
 # Initialize database when module is imported
 if __name__ == "__main__":
     init_database()
+    seed_database_from_csv()
 else:
     # Auto-initialize if database doesn't exist
     if not os.path.exists(DB_PATH):
         init_database()
+    seed_database_from_csv()
