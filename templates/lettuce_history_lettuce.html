@@ -53,8 +53,8 @@
   <!-- Header -->
   <div class="page-header">
     <div class="page-title-section">
-      <h1 class="page-title">History</h1>
-      <div class="breadcrumb">Dashboard › History › Records</div>
+      <h1 class="page-title">Database Viewer</h1>
+      <div class="breadcrumb">Dashboard › Database › Records</div>
     </div>
   </div>
 
@@ -409,19 +409,46 @@
   }
 
   function updatePagination(totalItems) {
-    const totalPages = Math.ceil(totalItems / itemsPerPage);
+const totalPages = Math.ceil(totalItems / itemsPerPage);
     const pagination = document.getElementById('pagination');
-    
+
     if (totalPages <= 1) {
       pagination.innerHTML = '';
       return;
     }
-    
+
     let html = '';
-    for (let i = 1; i <= totalPages; i++) {
+    const WINDOW = 2; // pages shown on each side of current page
+
+    // Previous button
+    html += `<button class="page-btn" onclick="goToPage(${currentPage - 1})" ${currentPage === 1 ? 'disabled' : ''}>‹</button>`;
+
+    // First page
+    html += `<button class="page-btn ${currentPage === 1 ? 'active' : ''}" onclick="goToPage(1)">1</button>`;
+
+    // Left ellipsis
+    if (currentPage - WINDOW > 2) {
+      html += `<button class="page-btn" disabled>…</button>`;
+    }
+
+    // Window around current page
+    for (let i = Math.max(2, currentPage - WINDOW); i <= Math.min(totalPages - 1, currentPage + WINDOW); i++) {
       html += `<button class="page-btn ${i === currentPage ? 'active' : ''}" onclick="goToPage(${i})">${i}</button>`;
     }
-    
+
+    // Right ellipsis
+    if (currentPage + WINDOW < totalPages - 1) {
+      html += `<button class="page-btn" disabled>…</button>`;
+    }
+
+    // Last page
+    if (totalPages > 1) {
+      html += `<button class="page-btn ${currentPage === totalPages ? 'active' : ''}" onclick="goToPage(${totalPages})">${totalPages}</button>`;
+    }
+
+    // Next button
+    html += `<button class="page-btn" onclick="goToPage(${currentPage + 1})" ${currentPage === totalPages ? 'disabled' : ''}>›</button>`;
+
     pagination.innerHTML = html;
   }
 
