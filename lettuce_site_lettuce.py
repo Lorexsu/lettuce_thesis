@@ -36,7 +36,7 @@ CORS(app)
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
 
 # Tapo Camera Configuration
-TAPO_IP = "192.168.1.2"  
+TAPO_IP = "192.168.1.60"  
 TAPO_USER = "topac200c"
 TAPO_PASS = "c200ctopa"  
 STREAM_URL = f"rtsp://{TAPO_USER}:{TAPO_PASS}@{TAPO_IP}:554/stream1"
