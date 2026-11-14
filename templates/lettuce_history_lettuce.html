@@ -93,8 +93,8 @@
 
   <!-- Filter Bar -->
   <div class="filter-bar">
-    <input type="text" class="search-input" id="searchInput" placeholder="Search in table..." onkeyup="filterTable()">
-    <input type="date" class="date-filter" id="dateFilter" onchange="filterTable()">
+    <input type="text" class="search-input" id="searchInput" placeholder="Search in table..." onkeyup="currentPage=1;filterTable()">
+    <input type="date" class="date-filter" id="dateFilter" onchange="currentPage=1;filterTable()">
     <select class="limit-select" id="limitSelect" onchange="changeLimit()">
       <option value="50">50 per page</option>
       <option value="100" selected>100 per page</option>
@@ -191,41 +191,37 @@
   // State management
   let currentTab = 'sensors';
   let currentPage = 1;
-  let itemsPerPage = 100;
-  let allData = {
-    sensors: [],
-    detections: [],
-    relays: []
-  };
-  let filteredData = {
-    sensors: [],
-    detections: [],
-    relays: []
-  };
+  let itemsPerPage = 100; 
+  let detectionsTotal = 0;
+  let filterTimer = null;
+  
+  let allData = { sensors: [], detections: [], relays: [] };
+  let filteredData = { sensors: [], detections: [], relays: [] };
 
   // Load data on page load
   window.addEventListener('load', () => {
+    // 🪄 SET DEFAULT DATE TO TODAY
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById('dateFilter').value = today;
+
     fetchAllData();
-    fetchDatabaseStats();
     setInterval(fetchAllData, 30000); // Refresh every 30 seconds
   });
 
   async function fetchAllData() {
     await Promise.all([
       fetchSensorData(),
-      fetchDetectionData(),
-      fetchRelayData()
+      fetchRelayData(),
+      fetchDatabaseStats()
     ]);
     filterTable();
   }
 
-  // ===== UPDATED: Real sensor data =====
   async function fetchSensorData() {
     try {
-      const response = await fetch('/api/sensor-history?hours=720'); // Last 30 days
+      const response = await fetch('/api/sensor-history?hours=87600');
       const data = await response.json();
       
-      // Transform to array format
       if (data.timestamps && data.timestamps.length > 0) {
         allData.sensors = data.timestamps.map((ts, index) => ({
           id: index + 1,
@@ -238,8 +234,6 @@
       } else {
         allData.sensors = [];
       }
-      
-      document.getElementById('stat-sensors').textContent = allData.sensors.length;
     } catch (error) {
       console.error('Error fetching sensor data:', error);
       allData.sensors = [];
@@ -248,33 +242,28 @@
     }
   }
 
-  // ===== UPDATED: Now uses REAL detection data from database =====
   async function fetchDetectionData() {
     try {
-      // Use the REAL detections endpoint
-      const response = await fetch('/api/detections?days=30');
+      const params = new URLSearchParams({
+        page: currentPage,
+        per_page: itemsPerPage,
+        date: document.getElementById('dateFilter').value,
+        search: document.getElementById('searchInput').value.trim()
+      });
+      const response = await fetch('/api/detections?' + params);
       const data = await response.json();
-      
-      if (Array.isArray(data)) {
-        allData.detections = data;
-        console.log(`✅ Loaded ${allData.detections.length} real detections from database`);
-      } else {
-        allData.detections = [];
-      }
-      
-      document.getElementById('stat-detections').textContent = allData.detections.length;
+      allData.detections = data.rows || [];
+      detectionsTotal = data.total || 0;
     } catch (error) {
       console.error('Error fetching detection data:', error);
       allData.detections = [];
-      document.getElementById('detections-tbody').innerHTML = 
-        '<tr><td colspan="7" style="text-align: center; padding: 3rem; color: #f44336;">Error loading detection data</td></tr>';
+      detectionsTotal = 0;
     }
   }
 
-  // ===== UPDATED: Better database stats =====
   async function fetchRelayData() {
     try {
-      const response = await fetch('/api/relay-history?days=30');
+      const response = await fetch('/api/relay-history?days=3650');
       const data = await response.json();
       
       if (Array.isArray(data)) {
@@ -290,8 +279,6 @@
       } else {
         allData.relays = [];
       }
-      
-      document.getElementById('stat-relays').textContent = allData.relays.length;
     } catch (error) {
       console.error('Error fetching relay data:', error);
       allData.relays = [];
@@ -302,10 +289,12 @@
 
   async function fetchDatabaseStats() {
     try {
-      // Calculate total rows and more accurate size
-      const totalRows = allData.sensors.length + allData.detections.length + allData.relays.length;
-      const dbSize = (totalRows * 1).toFixed(1); // ~1KB per row average
-      document.getElementById('db-size').textContent = dbSize + ' KB';
+      const res = await fetch('/api/database-stats');
+      const s = await res.json();
+      document.getElementById('stat-sensors').textContent = (s.sensor_readings || 0).toLocaleString();
+      document.getElementById('stat-detections').textContent = (s.detections || 0).toLocaleString();
+      document.getElementById('stat-relays').textContent = (s.relay_events || 0).toLocaleString();
+      document.getElementById('db-size').textContent = (s.db_size_mb || 0).toFixed(1) + ' MB';
     } catch (error) {
       console.error('Error calculating stats:', error);
     }
@@ -323,18 +312,33 @@
     document.querySelectorAll('.history-section').forEach(section => section.classList.remove('active'));
     document.getElementById(tab + '-section').classList.add('active');
     
-    // Reset search and date filters
+    // 🪄 FIX: Don't clear the date if it's already set to today!
+    const dateInput = document.getElementById('dateFilter');
+    if (!dateInput.value) {
+        const today = new Date().toISOString().split('T')[0];
+        dateInput.value = today;
+    }
+    
+    // Reset search only (keep the date)
     document.getElementById('searchInput').value = '';
-    document.getElementById('dateFilter').value = '';
     
     filterTable();
   }
 
   function filterTable() {
+    if (currentTab === 'detections') { 
+      clearTimeout(filterTimer);
+      filterTimer = setTimeout(async () => {
+        await fetchDetectionData();
+        displayTable();
+      }, 300);
+      return;
+    }
+    
+    // For sensors and relays (local filtering)
     const searchTerm = document.getElementById('searchInput').value.toLowerCase();
     const dateFilter = document.getElementById('dateFilter').value;
     
-    // Filter data based on current tab
     filteredData[currentTab] = allData[currentTab].filter(item => {
       let matchesSearch = true;
       let matchesDate = true;
@@ -343,11 +347,9 @@
         const itemString = JSON.stringify(item).toLowerCase();
         matchesSearch = itemString.includes(searchTerm);
       }
-      
       if (dateFilter) {
         matchesDate = item.timestamp?.startsWith(dateFilter);
       }
-      
       return matchesSearch && matchesDate;
     });
     
@@ -356,10 +358,11 @@
 
   function displayTable() {
     const tbody = document.getElementById(currentTab + '-tbody');
-    const data = filteredData[currentTab];
-    const start = (currentPage - 1) * itemsPerPage;
-    const end = start + itemsPerPage;
-    const pageData = data.slice(start, end);
+    const serverPaged = currentTab === 'detections';
+    
+    // If server paged, data is already sliced. If local, slice it.
+    const data = serverPaged ? allData.detections : filteredData[currentTab];
+    const pageData = serverPaged ? data : data.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
     
     if (data.length === 0) {
       tbody.innerHTML = `<tr><td colspan="8" style="text-align: center; padding: 3rem;">No records found</td></tr>`;
@@ -382,7 +385,7 @@
               <tr>
                 <td>${item.id}</td>
                 <td>${item.timestamp}</td>
-                <td><span class="${item.label.includes('Ready') ? 'badge-ready' : 'badge-not-ready'}">${item.label}</span></td>
+                <td><span class="${item.label.includes('Not') ? 'badge-not-ready' : 'badge-ready'}">${item.label}</span></td>
                 <td>${(item.confidence * 100).toFixed(1)}%</td>
                 <td>${item.health_status}</td>
                 <td>${(item.health_confidence * 100).toFixed(1)}%</td>
@@ -405,11 +408,11 @@
       }).join('');
     }
     
-    updatePagination(data.length);
+    updatePagination(serverPaged ? detectionsTotal : filteredData[currentTab].length);
   }
 
   function updatePagination(totalItems) {
-const totalPages = Math.ceil(totalItems / itemsPerPage);
+    const totalPages = Math.ceil(totalItems / itemsPerPage);
     const pagination = document.getElementById('pagination');
 
     if (totalPages <= 1) {
@@ -418,49 +421,41 @@ const totalPages = Math.ceil(totalItems / itemsPerPage);
     }
 
     let html = '';
-    const WINDOW = 2; // pages shown on each side of current page
+    const WINDOW = 2;
 
-    // Previous button
     html += `<button class="page-btn" onclick="goToPage(${currentPage - 1})" ${currentPage === 1 ? 'disabled' : ''}>‹</button>`;
-
-    // First page
     html += `<button class="page-btn ${currentPage === 1 ? 'active' : ''}" onclick="goToPage(1)">1</button>`;
 
-    // Left ellipsis
-    if (currentPage - WINDOW > 2) {
-      html += `<button class="page-btn" disabled>…</button>`;
-    }
+    if (currentPage - WINDOW > 2) html += `<button class="page-btn" disabled>…</button>`;
 
-    // Window around current page
     for (let i = Math.max(2, currentPage - WINDOW); i <= Math.min(totalPages - 1, currentPage + WINDOW); i++) {
       html += `<button class="page-btn ${i === currentPage ? 'active' : ''}" onclick="goToPage(${i})">${i}</button>`;
     }
 
-    // Right ellipsis
-    if (currentPage + WINDOW < totalPages - 1) {
-      html += `<button class="page-btn" disabled>…</button>`;
-    }
+    if (currentPage + WINDOW < totalPages - 1) html += `<button class="page-btn" disabled>…</button>`;
 
-    // Last page
     if (totalPages > 1) {
       html += `<button class="page-btn ${currentPage === totalPages ? 'active' : ''}" onclick="goToPage(${totalPages})">${totalPages}</button>`;
     }
 
-    // Next button
     html += `<button class="page-btn" onclick="goToPage(${currentPage + 1})" ${currentPage === totalPages ? 'disabled' : ''}>›</button>`;
-
     pagination.innerHTML = html;
   }
 
-  function goToPage(page) {
+  async function goToPage(page) {
     currentPage = page;
+    if (currentTab === 'detections') await fetchDetectionData();
     displayTable();
   }
 
   function changeLimit() {
     itemsPerPage = parseInt(document.getElementById('limitSelect').value);
     currentPage = 1;
-    filterTable();
+    if (currentTab === 'detections') {
+      fetchDetectionData().then(() => displayTable());
+    } else {
+      filterTable();
+    }
   }
 
   function refreshData() {
@@ -468,9 +463,8 @@ const totalPages = Math.ceil(totalItems / itemsPerPage);
   }
 
   function exportCurrentView() {
-    const data = filteredData[currentTab];
+    const data = currentTab === 'detections' ? allData.detections : filteredData[currentTab];
     
-    // Convert to CSV
     if (data.length === 0) {
       alert('No data to export');
       return;
@@ -498,7 +492,6 @@ const totalPages = Math.ceil(totalItems / itemsPerPage);
     window.URL.revokeObjectURL(url);
   }
 
-  // Sidebar Functions
   function toggleSidebar() {
     const sidebar = document.querySelector('.sidebar');
     sidebar.classList.toggle('collapsed');
@@ -509,7 +502,6 @@ const totalPages = Math.ceil(totalItems / itemsPerPage);
     document.querySelector('.sidebar').classList.toggle('mobile-open');
   }
 
-  // Load sidebar preference
   window.addEventListener('load', () => {
     const isCollapsed = localStorage.getItem('sidebarCollapsed') === 'true';
     if (isCollapsed) document.querySelector('.sidebar').classList.add('collapsed');
@@ -519,7 +511,6 @@ const totalPages = Math.ceil(totalItems / itemsPerPage);
       mobileToggle.style.display = 'flex';
     }
   });
-
 </script>
 
 </body>
