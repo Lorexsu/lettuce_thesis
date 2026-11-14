@@ -317,7 +317,7 @@ def process_frame_yolo(frame, save_to_db=False):
     if frame is None:
         return None, []
     
-    results = model.predict(frame, conf=0.35, iou=5, agnostic_nms=True, max_det=54, verbose=False)  
+    results = model.predict(frame, conf=0.35, iou=0.5, agnostic_nms=True, max_det=54, verbose=False)  
 
     detections = []
     annotated_frame = frame.copy()
