@@ -47,7 +47,10 @@ ESP32_IP = "10.172.94.149"
 ESP32_SENSOR_URL = f"http://{ESP32_IP}:5000/get-sensor-data"    
 
 #Load YOLO (Readiness Detection)
-model_path = "/home/ubuntu/lettuce_thesis/best.pt"
+model_path = "C:/Users/Rolex Jr/OneDrive/Desktop/lettuce_model_thesis/runs/detect/lettuce_yolo12_new_trained_new2/weights/best.pt"
+#Load YOLO (Readiness Detection)
+#model_path = "/home/ubuntu/lettuce_thesis/best.pt"
+
 
 try:
     model = YOLO(model_path)
@@ -108,7 +111,8 @@ live_stream_active = False
 latest_detection = None
 
 last_save_time_screen = 0
-SAVE_INTERVAL = 180  # 3 minutes
+DETECTION_SAVE_INTERVAL = 900  # seconds between detection DB saves (180 = 3 min, 900 = 15 min)
+SAVE_INTERVAL = DETECTION_SAVE_INTERVAL
 SENSOR_SAVE_INTERVAL = 3600
 
 """
@@ -583,7 +587,7 @@ def live_stream_processor():
     
     # Stream settings
     last_save_time = 0
-    SAVE_INTERVAL = 180  # Save to database every 1000 frames
+    SAVE_INTERVAL = DETECTION_SAVE_INTERVAL
     frame_count = 0
     
     while live_stream_active:
@@ -659,7 +663,7 @@ class LocalRTMPReader:
         self.thread = None
         self.frame_count = 0
         self.last_save_time = time.time()
-        self.SAVE_INTERVAL = 180  # Save to DB every 3 minutes
+        self.SAVE_INTERVAL = DETECTION_SAVE_INTERVAL
         
     def start(self):
         if self.running:
@@ -1623,46 +1627,17 @@ def api_daily_summary():
 
 @app.route('/api/detections', methods=['GET'])
 def api_detections():
-    """Get ALL detections from database - REAL DATA"""
-    days = request.args.get('days', 30, type=int)
-    try:
-        import sqlite3
-        from database import DB_PATH
-        conn = sqlite3.connect(DB_PATH)
-        cursor = conn.cursor()
-        
-        # Get REAL detection data from your database
-        cursor.execute('''
-            SELECT id, timestamp, label, confidence, 
-                   bbox_x1, bbox_y1, bbox_x2, bbox_y2,
-                   health_status, health_confidence
-            FROM detections
-            WHERE timestamp >= datetime((SELECT COALESCE(MAX(timestamp), datetime('now')) FROM detections), '-{} days')
-            ORDER BY timestamp DESC
-        '''.format(days))
-        
-        rows = cursor.fetchall()
-        conn.close()
-        
-        # Convert to JSON
-        detections = []
-        for row in rows:
-            detections.append({
-                'id': row[0],
-                'timestamp': row[1],
-                'label': row[2],
-                'confidence': row[3],
-                'bbox': f'({row[4]},{row[5]},{row[6]},{row[7]})',
-                'health_status': row[8] or 'Unknown',
-                'health_confidence': row[9] or 0.0
-            })
-        
-        print(f"📊 Returning {len(detections)} real detections from database")
-        return jsonify(detections)
-        
-    except Exception as e:
-        print(f"❌ Error fetching detections: {e}")
-        return jsonify([]), 500
+    """Paginated detections for the Database Viewer"""
+    return jsonify(database.get_detections_page(
+        page=request.args.get('page', 1, type=int),
+        per_page=request.args.get('per_page', 100, type=int),
+        date=request.args.get('date', '', type=str),
+        search=request.args.get('search', '', type=str)
+    ))
+
+@app.route('/api/database-stats', methods=['GET'])
+def api_database_stats():
+    return jsonify(database.get_database_stats())
 
 @socketio.on('screen_frame')
 def handle_screen_frame(data):

@@ -3,9 +3,11 @@ from datetime import datetime, timedelta
 import json
 import os
 
-#DB_PATH = 'lettuce_farm.db'
+
+#DB_PATH = r'C:/Users/Rolex Jr/OneDrive/Desktop/lettuce_model_thesis/ui-for-lettuce-thesis-1.5/lettuce_farm.db'
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(BASE_DIR, 'lettuce_farm.db')
+
 
 def init_database():
     """Initialize database with all tables"""
@@ -461,6 +463,52 @@ def save_log(log_level, component, message, details=None):
 # ========================================
 # UTILITY FUNCTIONS
 # ========================================
+def get_detections_page(page=1, per_page=100, date=None, search=''):
+    """Server-side pagination for the Database Viewer (detections tab)"""
+    try:
+        page = max(1, int(page))
+        per_page = min(max(1, int(per_page)), 500)
+        where, params = [], []
+        if date is None:                      # not provided -> today
+            where.append("DATE(timestamp) = DATE('now')")
+        elif date:                            # a specific day (YYYY-MM-DD)
+            where.append("DATE(timestamp) = ?")
+            params.append(date)
+        # date == '' -> no date filter (all days)
+        if search:
+            like = f"%{search}%"
+            where.append("(label LIKE ? OR health_status LIKE ? OR CAST(id AS TEXT) LIKE ? OR timestamp LIKE ?)")
+            params += [like, like, like, like]
+        clause = ("WHERE " + " AND ".join(where)) if where else ""
+
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute(f"SELECT COUNT(*) FROM detections {clause}", params)
+        total = cursor.fetchone()[0]
+        cursor.execute(f'''
+            SELECT id, timestamp, label, confidence,
+                   bbox_x1, bbox_y1, bbox_x2, bbox_y2,
+                   health_status, health_confidence
+            FROM detections {clause}
+            ORDER BY timestamp DESC, id DESC
+            LIMIT ? OFFSET ?
+        ''', params + [per_page, (page - 1) * per_page])
+        rows = cursor.fetchall()
+        conn.close()
+
+        return {
+            'total': total, 'page': page, 'per_page': per_page,
+            'rows': [{
+                'id': r[0], 'timestamp': r[1], 'label': r[2], 'confidence': r[3],
+                'bbox': f'({r[4]},{r[5]},{r[6]},{r[7]})',
+                'health_status': r[8] or 'Unknown',
+                'health_confidence': r[9] or 0.0
+            } for r in rows]
+        }
+    except Exception as e:
+        print(f"❌ Error getting detections page: {e}")
+        return {'total': 0, 'page': 1, 'per_page': 100, 'rows': []}
+
 
 def get_database_stats():
     """Get overall database statistics"""
