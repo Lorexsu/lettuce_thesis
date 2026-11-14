@@ -3,7 +3,9 @@ from datetime import datetime, timedelta
 import json
 import os
 
-DB_PATH = 'lettuce_farm.db'
+#DB_PATH = 'lettuce_farm.db'
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_PATH = os.path.join(BASE_DIR, 'lettuce_farm.db')
 
 def init_database():
     """Initialize database with all tables"""
