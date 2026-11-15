@@ -101,11 +101,14 @@ def save_sensor_reading(temperature, humidity, sensor_id='DHT11_001', location='
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
 
+        # Get current local time
         current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        
+        # MUST include timestamp in the INSERT and pass current_time!
         cursor.execute('''
-            INSERT INTO sensor_readings (temperature, humidity, sensor_id, location)
-            VALUES (?, ?, ?, ?)
-        ''', (temperature, humidity, sensor_id, location))
+            INSERT INTO sensor_readings (timestamp, temperature, humidity, sensor_id, location)
+            VALUES (?, ?, ?, ?, ?)
+        ''', (current_time, temperature, humidity, sensor_id, location))
         
         conn.commit()
         conn.close()
@@ -273,12 +276,15 @@ def save_relay_event(relay_name, action, trigger_type, temperature=None, humidit
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
 
+        # Get current local time
         current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        
+        # MUST include timestamp in the INSERT and pass current_time!
         cursor.execute('''
             INSERT INTO relay_events 
-            (relay_name, action, trigger_type, temperature, humidity)
-            VALUES (?, ?, ?, ?, ?)
-        ''', (relay_name, action, trigger_type, temperature, humidity))
+            (timestamp, relay_name, action, trigger_type, temperature, humidity)
+            VALUES (?, ?, ?, ?, ?, ?)
+        ''', (current_time, relay_name, action, trigger_type, temperature, humidity))
         
         conn.commit()
         conn.close()
