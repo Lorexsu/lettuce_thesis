@@ -18,7 +18,7 @@ def init_database():
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS sensor_readings (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+            timestamp DATETIME,
             temperature REAL,
             humidity REAL,
             sensor_id TEXT,
@@ -30,7 +30,7 @@ def init_database():
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS detections (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+            timestamp DATETIME,
             label TEXT,
             confidence REAL,
             bbox_x1 REAL,
@@ -47,7 +47,7 @@ def init_database():
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS relay_events (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+            timestamp DATETIME,
             relay_name TEXT,
             action TEXT,
             trigger_type TEXT,
@@ -78,7 +78,7 @@ def init_database():
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS system_logs (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+            timestamp DATETIME,
             log_level TEXT,
             component TEXT,
             message TEXT,
@@ -100,7 +100,8 @@ def save_sensor_reading(temperature, humidity, sensor_id='DHT11_001', location='
     try:
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
-        
+
+        current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         cursor.execute('''
             INSERT INTO sensor_readings (temperature, humidity, sensor_id, location)
             VALUES (?, ?, ?, ?)
@@ -179,12 +180,14 @@ def save_detection(label, confidence, bbox, health_status='Unknown', health_conf
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
         
+        
+        current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         cursor.execute('''
             INSERT INTO detections 
-            (label, confidence, bbox_x1, bbox_y1, bbox_x2, bbox_y2, 
+            (timestamp, label, confidence, bbox_x1, bbox_y1, bbox_x2, bbox_y2, 
              health_status, health_confidence, image_path)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (label, confidence, bbox['x1'], bbox['y1'], bbox['x2'], bbox['y2'],
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (current_time, label, confidence, bbox['x1'], bbox['y1'], bbox['x2'], bbox['y2'],
               health_status, health_confidence, image_path))
         
         conn.commit()
@@ -269,7 +272,8 @@ def save_relay_event(relay_name, action, trigger_type, temperature=None, humidit
     try:
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
-        
+
+        current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         cursor.execute('''
             INSERT INTO relay_events 
             (relay_name, action, trigger_type, temperature, humidity)
@@ -288,6 +292,7 @@ def get_relay_history(days=7):
     try:
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
+
         
         cursor.execute('''
             SELECT timestamp, relay_name, action, trigger_type, temperature, humidity
