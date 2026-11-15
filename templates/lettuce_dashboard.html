@@ -1851,16 +1851,13 @@ window.addEventListener('load', () => {
               ${isReady ? 'Ready to Harvest' : 'Not Ready'} 
               ${det.plant_number ? `· Plant #${det.plant_number} — Plate ${det.plate_num}, Row ${det.slot_row}, Col ${det.slot_col}` : ''}
             </div>
-            ${hasSize ? `
+             ${hasSize ? `
               <div style="display: flex; gap: 1rem; margin-top: 0.5rem; flex-wrap: wrap;">
                 <span style="font-size: 0.85rem; background: #e3f2fd; color: #1565c0; padding: 0.2rem 0.6rem; border-radius: 6px;">
-                  📏 ${det.width_cm} × ${det.height_cm} cm
+                  📏 Width: ${det.width_cm} cm
                 </span>
                 <span style="font-size: 0.85rem; background: #f3e5f5; color: #6a1b9a; padding: 0.2rem 0.6rem; border-radius: 6px;">
-                  ⌀ ${det.diameter_cm} cm
-                </span>
-                <span style="font-size: 0.85rem; background: #fff8e1; color: #e65100; padding: 0.2rem 0.6rem; border-radius: 6px;">
-                  📐 ${det.area_cm2} cm²
+                  ⌀ Diameter: ${det.diameter_cm} cm
                 </span>
               </div>
             ` : ''}
