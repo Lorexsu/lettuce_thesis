@@ -47,7 +47,9 @@ ESP32_IP = "10.172.94.149"
 ESP32_SENSOR_URL = f"http://{ESP32_IP}:5000/get-sensor-data"    
 
 #Load YOLO (Readiness Detection)
-model_path = "/home/ubuntu/lettuce_thesis/best.pt"
+model_path = "C:/Users/Rolex Jr/OneDrive/Desktop/lettuce_model_thesis/runs/detect/lettuce_yolo12_new_trained_new2/weights/best.pt"
+#Load YOLO (Readiness Detection)
+#model_path = "/home/ubuntu/lettuce_thesis/best.pt"
 
 
 try:
@@ -1110,6 +1112,7 @@ relay_states = {
 
 # Automation rules
 TEMP_THRESHOLD = 30.0
+FAN_HYSTERESIS = 2.0
 HUMIDITY_THRESHOLD = 65.0
 PUMP_DURATION = 4  # seconds
 PUMP_COOLDOWN = 3600  # seconds (1 hour)
@@ -1158,10 +1161,10 @@ def check_automation():
                 print("🌀 Fan cooldown ended")
         else:
             # Idle: start only when hot enough
-            should_activate_fan = temp >= TEMP_THRESHOLD
-            if should_activate_fan:
-                fan_last_on_time = now_ts
-
+            if relay_states['fan']:
+                should_activate_fan = temp > (TEMP_THRESHOLD - FAN_HYSTERESIS)
+            else:
+                should_activate_fan = temp >= TEMP_THRESHOLD
         if relay_states['fan'] != should_activate_fan:
             relay_states['fan'] = should_activate_fan
             log_activity('Fan', 'ON' if should_activate_fan else 'OFF',
