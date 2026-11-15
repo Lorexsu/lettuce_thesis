@@ -113,6 +113,7 @@ last_save_time_screen = 0
 DETECTION_SAVE_INTERVAL = 900  # seconds between detection DB saves (180 = 3 min, 900 = 15 min)
 SAVE_INTERVAL = DETECTION_SAVE_INTERVAL
 SENSOR_SAVE_INTERVAL = 3600
+last_sensor_save_time = 0  # 0 = the first reading after startup is saved right away
 
 """
 def process_frame_yolo(frame, save_to_db=False):
