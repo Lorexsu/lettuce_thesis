@@ -46,9 +46,10 @@ STREAM_URL = f"rtsp://{TAPO_USER}:{TAPO_PASS}@{TAPO_IP}:554/stream1"
 ESP32_IP = "10.172.94.149"
 ESP32_SENSOR_URL = f"http://{ESP32_IP}:5000/get-sensor-data"    
 
-
 #Load YOLO (Readiness Detection)
-model_path = "/home/ubuntu/lettuce_thesis/best.pt"
+model_path = "C:/Users/Rolex Jr/OneDrive/Desktop/lettuce_model_thesis/runs/detect/lettuce_yolo12_new_trained_new2/weights/best.pt"
+#Load YOLO (Readiness Detection)
+#model_path = "/home/ubuntu/lettuce_thesis/best.pt"
 
 
 try:
@@ -126,19 +127,19 @@ def process_frame_yolo(frame, save_to_db=False):
 
 # Grid calibration constants
 GRID_COLS = 9          # 3 plates x 3 columns each
-GRID_ROWS = 6          # 6 rows per plate
-# Tray corners (each corner independent for perspective correction)
-TRAY_TL = (310, 120)   # top-left
-TRAY_TR = (1120, -20)   # top-right (higher than left)
-TRAY_BR = (1250, 625)  # bottom-right
-TRAY_BL = (300, 685)   # bottom-left
-# Plate separator 1 (left divider) - adjust top/bottom independently
-SEP1_TOP    = (563, 95)   # top point of first separator
-SEP1_BOTTOM = (565, 685)   # bottom point of first separator
+GRID_ROWS = 5          # 6 rows per plate
 
-# Plate separator 2 (right divider) - adjust top/bottom independently
-SEP2_TOP    = (850, 45)   # top point of second separator
-SEP2_BOTTOM = (916, 665)   # bottom point of second separator
+TRAY_TL = (270, 43)
+TRAY_TR = (1107, 21)
+TRAY_BR = (1148, 627)
+TRAY_BL = (187, 643)
+
+SEP1_TOP    = (529, 40)
+SEP1_BOTTOM = (486, 633)
+
+SEP2_TOP    = (819, 34)
+SEP2_BOTTOM = (835, 651)
+
 # Bounding box for grid math
 TRAY_X1 = TRAY_TL[0]
 TRAY_Y1 = min(TRAY_TL[1], TRAY_TR[1])
@@ -155,9 +156,10 @@ MAX_BOX_W_PX = SLOT_W_PX * 2.0                 # reject boxes wider than 2 slots
 MAX_BOX_H_PX = SLOT_H_PX * 2.0                # reject boxes taller than 2 slots
 # Size estimation using calibration (cm/px ratios)
 CM_PER_PX_X = 0.1315
-CM_PER_PX_Y = 0.2672
-MAX_BOX_W_PX = 9999
-MAX_BOX_H_PX = 9999
+CM_PER_PX_Y = 0.1315  
+# Max size a box can be before we assume it's a mistake (e.g. 2.5 slots wide)
+MAX_BOX_W_PX = SLOT_W_PX * 2.5 
+MAX_BOX_H_PX = SLOT_H_PX * 2.5
 
 
 def draw_grid(frame):
@@ -190,16 +192,23 @@ def draw_grid(frame):
             top_pt    = (zone_tops[zone]    + t * (zone_tops[zone+1]    - zone_tops[zone])).astype(int)
             bottom_pt = (zone_bottoms[zone] + t * (zone_bottoms[zone+1] - zone_bottoms[zone])).astype(int)
             cv2.line(overlay, tuple(top_pt), tuple(bottom_pt), (0, 0, 255), 1)
-
-    # Draw plate separators (manually positioned)
-    cv2.line(overlay, SEP1_TOP, SEP1_BOTTOM, (255, 0, 0), 2)
-    cv2.line(overlay, SEP2_TOP, SEP2_BOTTOM, (255, 0, 0), 2)
-
-    # Draw tray border (green)
-    pts = np.array([TRAY_TL, TRAY_TR, TRAY_BR, TRAY_BL], np.int32)
-    cv2.polylines(overlay, [pts], isClosed=True, color=(0, 255, 0), thickness=2)
-
-    cv2.addWeighted(overlay, 0.0, frame, 1.0, 0, frame)
+            
+            # 🪄 DRAW THE PLANT NUMBER IN EVERY SLOT
+            if col < cols_per_zone:
+                for row in range(GRID_ROWS):
+                    # Calculate the center of this specific slot
+                    c_x = int(top_pt[0] + (bottom_pt[0] - top_pt[0]) * (row + 0.5) / GRID_ROWS + (top_pt[0] - bottom_pt[0]) * 0)
+                    c_y = int(top_pt[1] + (bottom_pt[1] - top_pt[1]) * (row + 0.5) / GRID_ROWS)
+                    
+                    # Calculate the plant number for this slot (matches get_slot_position logic)
+                    col_idx = zone * cols_per_zone + col
+                    if col_idx % 2 == 0:
+                        slot_in_col = row
+                        plant_num = col_idx * GRID_ROWS + slot_in_col + 1
+                    else:
+                        slot_in_col = GRID_ROWS - 1 - row
+                        plant_num = col_idx * GRID_ROWS + slot_in_col + 1
+                        
     return frame
 
 def get_col_x_at_y(y):
@@ -347,6 +356,19 @@ def process_frame_yolo(frame, save_to_db=False):
             # Slot position
             cx = (x1 + x2) / 2
             cy = (y1 + y2) / 2
+
+            # 🪄 CHECK IF PLANT IS INSIDE THE TRAY
+            # Create a polygon of the 4 corners of the tray
+            tray_polygon = np.array([TRAY_TL, TRAY_TR, TRAY_BR, TRAY_BL], dtype=np.int32)
+            
+            # Check if the center of the box (cx, cy) is inside the tray
+            # (returns > 0 if inside, 0 if on the edge, < 0 if outside)
+            is_inside = cv2.pointPolygonTest(tray_polygon, (float(cx), float(cy)), False)
+            
+            if is_inside < 0:
+                continue  # Skip this detection, it's outside the tray!
+
+            # If it passes the check, get the slot number
             slot_row, slot_col, plate_num, plant_number = get_slot_position(cx, cy)
 
 
@@ -406,6 +428,7 @@ def process_frame_yolo(frame, save_to_db=False):
                 except Exception as e:
                     print(f"Health classification error: {e}")
                     health_status = 'Error'
+
             
             # Create detection dictionary
             detection = {
@@ -417,13 +440,16 @@ def process_frame_yolo(frame, save_to_db=False):
                 'width_cm': width_cm,
                 'height_cm': height_cm,
                 'diameter_cm': diameter_cm,
-                'area_cm2': area_cm2,
+                'area_cm2': 0.0,
                 'slot_row': slot_row,
                 'slot_col': slot_col,
                 'plate_num': plate_num,
                 'plant_number': plant_number
             }
             detections.append(detection)
+
+    # 🪄 SORT THE DETECTIONS BY PLANT NUMBER
+    detections.sort(key=lambda x: x['plant_number'])
             
     # Save to database (moved outside the inner loop but still inside box loop)
     if save_to_db:
@@ -445,100 +471,100 @@ def process_frame_yolo(frame, save_to_db=False):
     annotated_frame = draw_grid(annotated_frame)
     return annotated_frame, detections
     
-"""
-def live_stream_processor():
-    "/"/"Background thread to process ESP32 stream"/"/"
-    global live_stream_active, latest_detection
+
+# def live_stream_processor():
+#     "/"/"Background thread to process ESP32 stream"/"/"
+#     global live_stream_active, latest_detection
     
-    print(f"🎥 Starting live stream from {STREAM_URL}")
+#     print(f"🎥 Starting live stream from {STREAM_URL}")
     
-    cap = cv2.VideoCapture(STREAM_URL)
-    cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+#     cap = cv2.VideoCapture(STREAM_URL)
+#     cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
     
-    if not cap.isOpened():
-        print(f"❌ FAILED to open camera stream at {STREAM_URL}")
-        print("   Check: 1) Camera IP reachable 2) RTSP port 554 open 3) Credentials correct")
-        socketio.emit('stream_status', {'status': 'error', 'message': 'Camera connection failed'})
-        return
-    else:
-        print(f"✅ Camera stream opened successfully")
+#     if not cap.isOpened():
+#         print(f"❌ FAILED to open camera stream at {STREAM_URL}")
+#         print("   Check: 1) Camera IP reachable 2) RTSP port 554 open 3) Credentials correct")
+#         socketio.emit('stream_status', {'status': 'error', 'message': 'Camera connection failed'})
+#         return
+#     else:
+#         print(f"✅ Camera stream opened successfully")
     
-    retry_count = 0
-    max_retries = 5
+#     retry_count = 0
+#     max_retries = 5
     
-    # 🆕 ADD THESE TWO LINES:
-    last_save_time = 0
-    SAVE_INTERVAL = 1000  
+#     # 🆕 ADD THESE TWO LINES:
+#     last_save_time = 0
+#     SAVE_INTERVAL = 1000  
     
-    while live_stream_active:
-        try:
-            if not cap.isOpened():
-                print(f"Reconnecting to stream... (attempt {retry_count + 1})")
-                cap.release()
-                time.sleep(2)
-                cap = cv2.VideoCapture(STREAM_URL)
-                retry_count += 1
-                if retry_count >= max_retries:
-                    print("Max retries reached. Stopping stream.")
-                    break
-                continue
+#     while live_stream_active:
+#         try:
+#             if not cap.isOpened():
+#                 print(f"Reconnecting to stream... (attempt {retry_count + 1})")
+#                 cap.release()
+#                 time.sleep(2)
+#                 cap = cv2.VideoCapture(STREAM_URL)
+#                 retry_count += 1
+#                 if retry_count >= max_retries:
+#                     print("Max retries reached. Stopping stream.")
+#                     break
+#                 continue
             
-            ret, frame = cap.read()
+#             ret, frame = cap.read()
             
-            if not ret or frame is None:
-                print("Failed to read frame. Retrying...")
-                time.sleep(0.5)
-                continue
+#             if not ret or frame is None:
+#                 print("Failed to read frame. Retrying...")
+#                 time.sleep(0.5)
+#                 continue
             
-            retry_count = 0
+#             retry_count = 0
             
-            # 🆕 CHANGE THIS LINE - Pass save flag:
-            current_time = time.time()
-            should_save = (current_time - last_save_time) >= SAVE_INTERVAL
-            annotated_frame, detections = process_frame_yolo(frame, save_to_db=should_save)
+#             # 🆕 CHANGE THIS LINE - Pass save flag:
+#             current_time = time.time()
+#             should_save = (current_time - last_save_time) >= SAVE_INTERVAL
+#             annotated_frame, detections = process_frame_yolo(frame, save_to_db=should_save)
             
-            # 🆕 UPDATE save time if we saved:
-            if should_save and detections:
-                last_save_time = current_time
-                print(f"💾 Saved {len(detections)} detections to database")
+#             # 🆕 UPDATE save time if we saved:
+#             if should_save and detections:
+#                 last_save_time = current_time
+#                 print(f"💾 Saved {len(detections)} detections to database")
             
-            _, buffer = cv2.imencode('.jpg', annotated_frame, [cv2.IMWRITE_JPEG_QUALITY, 80])
-            frame_base64 = base64.b64encode(buffer).decode('utf-8')
+#             _, buffer = cv2.imencode('.jpg', annotated_frame, [cv2.IMWRITE_JPEG_QUALITY, 80])
+#             frame_base64 = base64.b64encode(buffer).decode('utf-8')
             
-            # Prepare detection data
-            if detections:
-                ready_count = sum(1 for d in detections if 'ready' in d['label'].lower() and 'not' not in d['label'].lower())
-                not_ready_count = len(detections) - ready_count
+#             # Prepare detection data
+#             if detections:
+#                 ready_count = sum(1 for d in detections if 'ready' in d['label'].lower() and 'not' not in d['label'].lower())
+#                 not_ready_count = len(detections) - ready_count
                 
-                result = {
-                    "frame": f"data:image/jpeg;base64,{frame_base64}",
-                    "total_count": len(detections),
-                    "ready_count": ready_count,
-                    "not_ready_count": not_ready_count,
-                    "detections": detections,
-                    "timestamp": time.time()
-                }
-            else:
-                result = {
-                    "frame": f"data:image/jpeg;base64,{frame_base64}",
-                    "total_count": 0,
-                    "ready_count": 0,
-                    "not_ready_count": 0,
-                    "detections": [],
-                    "timestamp": time.time()
-                }
+#                 result = {
+#                     "frame": f"data:image/jpeg;base64,{frame_base64}",
+#                     "total_count": len(detections),
+#                     "ready_count": ready_count,
+#                     "not_ready_count": not_ready_count,
+#                     "detections": detections,
+#                     "timestamp": time.time()
+#                 }
+#             else:
+#                 result = {
+#                     "frame": f"data:image/jpeg;base64,{frame_base64}",
+#                     "total_count": 0,
+#                     "ready_count": 0,
+#                     "not_ready_count": 0,
+#                     "detections": [],
+#                     "timestamp": time.time()
+#                 }
             
-            latest_detection = result
-            socketio.emit('detection_update', result)
-            time.sleep(0.033)  # ~30 FPS
+#             latest_detection = result
+#             socketio.emit('detection_update', result)
+#             time.sleep(0.033)  # ~30 FPS
                         
-        except Exception as e:
-            print(f"Stream error: {e}")
-            cap.release()
-            time.sleep(2)
+#         except Exception as e:
+#             print(f"Stream error: {e}")
+#             cap.release()
+#             time.sleep(2)
     
-    cap.release()
-"""
+#     cap.release()
+
 
 def live_stream_processor():
     "/"/"Background thread to process emulator stream (no RTSP needed)"/"/"
@@ -655,8 +681,12 @@ def live_stream_processor():
             traceback.print_exc()
             time.sleep(1)
 
+
+
+
 class LocalRTMPReader:
     def __init__(self, rtmp_url="rtmp://stream.lettucereadiness.bar/live/mystream"):
+    # def __init__(self, rtmp_url="rtmp://127.0.0.1:1935/live/mystream"):
         self.rtmp_url = rtmp_url
         self.cap = None
         self.running = False
@@ -1122,9 +1152,11 @@ LIGHT_END_HOUR = 6     # 6 AM next day
 FAN_RUN_DURATION = 5 * 60      # 5 minutes ON
 FAN_COOLDOWN_DURATION = 30 * 60 # 30 minutes cooldown
 
-fan_last_on_time = 0
+# Start the timer at the exact time the server boots up
+fan_last_on_time = time.time() 
 fan_in_cooldown = False
 fan_cooldown_start = 0
+last_fan_log_time = 0  # 🪄 Stops history spam
 
 # Pump timing state
 pump_state = {
@@ -1144,6 +1176,11 @@ def check_automation():
     # Fan automation with run duration and cooldown
     if temp is not None:
         now_ts = time.time()
+        
+        # If the fan just turned ON, make sure the timer is set
+        if relay_states['fan'] and fan_last_on_time == 0:
+            fan_last_on_time = now_ts
+            
         if relay_states['fan']:
             # Running: stay ON for the full run time, then start cooldown
             if now_ts - fan_last_on_time >= FAN_RUN_DURATION:
@@ -1161,16 +1198,23 @@ def check_automation():
                 print("🌀 Fan cooldown ended")
         else:
             # Idle: start only when hot enough
-            if relay_states['fan']:
-                should_activate_fan = temp > (TEMP_THRESHOLD - FAN_HYSTERESIS)
+            should_activate_fan = temp >= TEMP_THRESHOLD
+            if should_activate_fan:
+                fan_last_on_time = now_ts
             else:
                 should_activate_fan = temp >= TEMP_THRESHOLD
         if relay_states['fan'] != should_activate_fan:
             relay_states['fan'] = should_activate_fan
-            log_activity('Fan', 'ON' if should_activate_fan else 'OFF',
-                        f'Temperature {temp}°C', temp, humid)
-            save_relay_event(relay_name='fan', action='ON' if should_activate_fan else 'OFF',
-                           trigger_type='auto', temperature=temp, humidity=humid)
+            global last_fan_log_time
+            
+            # Only save to history if 60 seconds have passed (prevents spam)
+            if time.time() - last_fan_log_time > 60:
+                log_activity('Fan', 'ON' if should_activate_fan else 'OFF',
+                            f'Temperature {temp}°C', temp, humid)
+                save_relay_event(relay_name='fan', action='ON' if should_activate_fan else 'OFF',
+                               trigger_type='auto', temperature=temp, humidity=humid)
+                last_fan_log_time = time.time()
+                
             print(f"🌀 Fan {'ON' if should_activate_fan else 'OFF'} - Temp: {temp}°C")
             changes_made = True
 
@@ -1344,117 +1388,117 @@ def get_detection_history():
         })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
-"""
-@app.route('/save-detection-image', methods=['POST'])
-def save_detection_image():
-    "/"/"Save images and labels for YOLO training"/"/"
-    try:
-        data = request.json
-        
-        # Extract images
-        annotated_b64 = data['annotated_image'].split(',')[1] if ',' in data['annotated_image'] else data['annotated_image']
-        original_b64 = data.get('original_image', annotated_b64).split(',')[1] if ',' in data.get('original_image', annotated_b64) else data.get('original_image', annotated_b64)
-        
-        # Create directories
-        os.makedirs('training_data/images', exist_ok=True)
-        os.makedirs('training_data/labels', exist_ok=True)
-        os.makedirs('training_data/annotated', exist_ok=True)
-        
-        # Generate filename with timestamp
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        filename = f'lettuce_{timestamp}'
-        
-        # Save original image (for training)
-        original_path = os.path.join('training_data/images', f'{filename}.jpg')
-        with open(original_path, 'wb') as f:
-            f.write(base64.b64decode(original_b64))
-        
-        # Save annotated image (for viewing)
-        annotated_path = os.path.join('training_data/annotated', f'{filename}.jpg')
-        with open(annotated_path, 'wb') as f:
-            f.write(base64.b64decode(annotated_b64))
-        
-        # Save YOLO label file
-        detections = data.get('detections', [])
-        label_path = os.path.join('training_data/labels', f'{filename}.txt') 
 
-        # Get image dimensions (assume 640x480 from your stream)
-        img_width = data.get('width', 640)
-        img_height = data.get('height', 480)
+# @app.route('/save-detection-image', methods=['POST'])
+# def save_detection_image():
+#     "/"/"Save images and labels for YOLO training"/"/"
+#     try:
+#         data = request.json
         
+#         # Extract images
+#         annotated_b64 = data['annotated_image'].split(',')[1] if ',' in data['annotated_image'] else data['annotated_image']
+#         original_b64 = data.get('original_image', annotated_b64).split(',')[1] if ',' in data.get('original_image', annotated_b64) else data.get('original_image', annotated_b64)
         
-        with open(label_path, 'w') as f:
-            for det in detections:
-                # Convert to YOLO format: class x_center y_center width height (normalized)
-                bbox = det['bbox']
-                x1, y1, x2, y2 = bbox['x1'], bbox['y1'], bbox['x2'], bbox['y2']
-                
-                # Calculate center and dimensions
-                x_center = ((x1 + x2) / 2) / img_width
-                y_center = ((y1 + y2) / 2) / img_height
-                width = (x2 - x1) / img_width
-                height = (y2 - y1) / img_height
-                
-                # Determine class ID
-                label = det['label'].lower()
-                if 'ready' in label and 'not' not in label:
-                    class_id = 0  # Not Ready 
-                elif 'not' in label and 'ready' in label:
-                    class_id = 1  # Ready to Harvest
-                else:
-                    class_id = 2  # Other
-                
-                # Write YOLO format: class_id x_center y_center width height
-                f.write(f"{class_id} {x_center:.6f} {y_center:.6f} {width:.6f} {height:.6f}\n")
+#         # Create directories
+#         os.makedirs('training_data/images', exist_ok=True)
+#         os.makedirs('training_data/labels', exist_ok=True)
+#         os.makedirs('training_data/annotated', exist_ok=True)
+        
+#         # Generate filename with timestamp
+#         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+#         filename = f'lettuce_{timestamp}'
+        
+#         # Save original image (for training)
+#         original_path = os.path.join('training_data/images', f'{filename}.jpg')
+#         with open(original_path, 'wb') as f:
+#             f.write(base64.b64decode(original_b64))
+        
+#         # Save annotated image (for viewing)
+#         annotated_path = os.path.join('training_data/annotated', f'{filename}.jpg')
+#         with open(annotated_path, 'wb') as f:
+#             f.write(base64.b64decode(annotated_b64))
+        
+#         # Save YOLO label file
+#         detections = data.get('detections', [])
+#         label_path = os.path.join('training_data/labels', f'{filename}.txt') 
 
-        # Save metadata
-        metadata = {
-            'timestamp': data.get('timestamp', datetime.now().isoformat()),
-            'filename': filename,
-            'detections': detections,
-            'ready_count': data.get('ready_count', 0),
-            'not_ready_count': data.get('not_ready_count', 0),
-            'image_size': {'width': img_width, 'height': img_height}
+#         # Get image dimensions (assume 640x480 from your stream)
+#         img_width = data.get('width', 640)
+#         img_height = data.get('height', 480)
+        
+        
+#         with open(label_path, 'w') as f:
+#             for det in detections:
+#                 # Convert to YOLO format: class x_center y_center width height (normalized)
+#                 bbox = det['bbox']
+#                 x1, y1, x2, y2 = bbox['x1'], bbox['y1'], bbox['x2'], bbox['y2']
+                
+#                 # Calculate center and dimensions
+#                 x_center = ((x1 + x2) / 2) / img_width
+#                 y_center = ((y1 + y2) / 2) / img_height
+#                 width = (x2 - x1) / img_width
+#                 height = (y2 - y1) / img_height
+                
+#                 # Determine class ID
+#                 label = det['label'].lower()
+#                 if 'ready' in label and 'not' not in label:
+#                     class_id = 0  # Not Ready 
+#                 elif 'not' in label and 'ready' in label:
+#                     class_id = 1  # Ready to Harvest
+#                 else:
+#                     class_id = 2  # Other
+                
+#                 # Write YOLO format: class_id x_center y_center width height
+#                 f.write(f"{class_id} {x_center:.6f} {y_center:.6f} {width:.6f} {height:.6f}\n")
+
+#         # Save metadata
+#         metadata = {
+#             'timestamp': data.get('timestamp', datetime.now().isoformat()),
+#             'filename': filename,
+#             'detections': detections,
+#             'ready_count': data.get('ready_count', 0),
+#             'not_ready_count': data.get('not_ready_count', 0),
+#             'image_size': {'width': img_width, 'height': img_height}
             
-        }
+#         }
         
-        metadata_path = os.path.join('training_data', f'{filename}.json')
-        with open(metadata_path, 'w') as f:
-            json.dump(metadata, f, indent=2)
+#         metadata_path = os.path.join('training_data', f'{filename}.json')
+#         with open(metadata_path, 'w') as f:
+#             json.dump(metadata, f, indent=2)
         
-        print(f"💾 Saved training data: {filename}")
-        print(f"   - Original image: {original_path}")
-        print(f"   - Annotated image: {annotated_path}")
-        print(f"   - YOLO labels: {label_path}")
-        print(f"   - Detections: {len(detections)}")
+#         print(f"💾 Saved training data: {filename}")
+#         print(f"   - Original image: {original_path}")
+#         print(f"   - Annotated image: {annotated_path}")
+#         print(f"   - YOLO labels: {label_path}")
+#         print(f"   - Detections: {len(detections)}")
         
-        for det in detections:
-            save_detection(
-                label=det['label'],
-                confidence=det['confidence'],
-                bbox=det['bbox'],
-                health_status=det.get('health_status'),
-                health_confidence=det.get('health_confidence'),
-                image_path=original_path
-            )
+#         for det in detections:
+#             save_detection(
+#                 label=det['label'],
+#                 confidence=det['confidence'],
+#                 bbox=det['bbox'],
+#                 health_status=det.get('health_status'),
+#                 health_confidence=det.get('health_confidence'),
+#                 image_path=original_path
+#             )
 
-        return jsonify({
-            'status': 'success',
-            'filename': filename,
-            'detections': len(detections),
-            'paths': {
-                'original': original_path,
-                'annotated': annotated_path,
-                'labels': label_path
-            }
-        })
+#         return jsonify({
+#             'status': 'success',
+#             'filename': filename,
+#             'detections': len(detections),
+#             'paths': {
+#                 'original': original_path,
+#                 'annotated': annotated_path,
+#                 'labels': label_path
+#             }
+#         })
         
-    except Exception as e:
-        print(f"Error saving training data: {e}")
-        import traceback
-        traceback.print_exc()
-        return jsonify({'status': 'error', 'message': str(e)}), 500
-"""    
+#     except Exception as e:
+#         print(f"Error saving training data: {e}")
+#         import traceback
+#         traceback.print_exc()
+#         return jsonify({'status': 'error', 'message': str(e)}), 500
+
 
 @app.route('/reset-analytics', methods=['POST'])
 def reset_analytics():
@@ -1688,6 +1732,216 @@ def handle_screen_frame(data):
         
     except Exception as e:
         print(f"Error processing screen frame: {e}")
+
+@app.route('/calibrate')
+def calibrate_tool():
+    """A drag-and-drop tool built into the website to find grid coordinates"""
+    return '''
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Grid Calibration</title>
+        <style>
+            body { font-family: Arial; background: #222; color: white; text-align: center; margin: 0; padding: 20px; }
+            canvas { border: 2px solid #00ff00; cursor: move; max-width: 100%; box-shadow: 0 0 20px rgba(0,0,0,0.5); }
+            .instructions { margin-bottom: 10px; color: #00ff00; font-size: 20px; font-weight: bold; }
+            .output { background: #111; padding: 15px; margin-top: 20px; font-family: monospace; text-align: left; display: inline-block; border: 1px solid #555; white-space: pre; color: #00ff00; font-size: 16px; }
+            button { padding: 10px 20px; font-size: 16px; cursor: pointer; margin-top: 10px; background: #00ff00; border: none; font-weight: bold; border-radius: 5px;}
+            button:hover { background: #00cc00; }
+        </style>
+    </head>
+    <body>
+        <h2>🖱️ Drag the 8 Points to Align the Grid</h2>
+        <div class="instructions" id="instruction">Drag the yellow dots to perfectly cover the plants.</div>
+        <canvas id="canvas"></canvas>
+        <br>
+        <button onclick="generateCode()">Generate Code</button>
+        <div class="output" id="output">Move the dots, then click "Generate Code"</div>
+
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+        <script>
+            const canvas = document.getElementById('canvas');
+            const ctx = canvas.getContext('2d');
+            const socket = io();
+            
+            let currentFrame = new Image();
+            let isFrameLoaded = false;
+            
+            // We initialize the points in a rough layout over the screen
+            let points = [
+                {x: 100, y: 100}, {x: 800, y: 100}, // 0: TL, 1: TR
+                {x: 800, y: 500}, {x: 100, y: 500}, // 2: BR, 3: BL
+                {x: 350, y: 100}, {x: 350, y: 500}, // 4: SEP1 Top, 5: SEP1 Bottom
+                {x: 600, y: 100}, {x: 600, y: 500}  // 6: SEP2 Top, 7: SEP2 Bottom
+            ];
+            
+            let draggingIdx = -1;
+
+            socket.on('detection_update', function(data) {
+                if (data.frame) {
+                    currentFrame.src = data.frame;
+                }
+            });
+
+            currentFrame.onload = function() {
+                if (!isFrameLoaded) {
+                    canvas.width = currentFrame.width;
+                    canvas.height = currentFrame.height;
+                    
+                    // Scale initial points to the actual image size
+                    const sx = canvas.width / 1000;
+                    const sy = canvas.height / 700;
+                    points = points.map(p => ({x: p.x * sx, y: p.y * sy}));
+                    
+                    isFrameLoaded = true;
+                }
+                drawCanvas();
+            };
+
+            // Helper function to interpolate between two points
+            function lerp(p1, p2, t) {
+                return {
+                    x: p1.x + (p2.x - p1.x) * t,
+                    y: p1.y + (p2.y - p1.y) * t
+                };
+            }
+
+            function drawCanvas() {
+                if (!isFrameLoaded) return;
+                
+                // 1. Draw the video frame
+                ctx.drawImage(currentFrame, 0, 0, canvas.width, canvas.height);
+                
+                // 2. Draw the Horizontal Red Lines (6 rows = 7 lines)
+                ctx.strokeStyle = 'rgba(255, 0, 0, 0.7)';
+                ctx.lineWidth = 1;
+                for (let r = 0; r <= 6; r++) {
+                    const t = r / 6.0;
+                    const leftPt = lerp(points[0], points[3], t);  // Interpolate Top-Left to Bottom-Left
+                    const rightPt = lerp(points[1], points[2], t); // Interpolate Top-Right to Bottom-Right
+                    
+                    ctx.beginPath();
+                    ctx.moveTo(leftPt.x, leftPt.y);
+                    ctx.lineTo(rightPt.x, rightPt.y);
+                    ctx.stroke();
+                }
+
+                // 3. Draw the Vertical Red Lines (9 columns = 10 lines, using the separators)
+                // We loop through the 3 zones (plates)
+                for (let zone = 0; zone < 3; zone++) {
+                    let topL, botL, topR, botR;
+                    
+                    if (zone === 0) {
+                        topL = points[0]; botL = points[3]; topR = points[4]; botR = points[5];
+                    } else if (zone === 1) {
+                        topL = points[4]; botL = points[5]; topR = points[6]; botR = points[7];
+                    } else {
+                        topL = points[6]; botL = points[7]; topR = points[1]; botR = points[2];
+                    }
+
+                    for (let c = 0; c <= 3; c++) {
+                        // Skip the first line of zones 1 and 2 because it overlaps with the separator
+                        if (zone > 0 && c === 0) continue; 
+                        
+                        const t = c / 3.0;
+                        const topPt = lerp(topL, topR, t);
+                        const botPt = lerp(botL, botR, t);
+                        
+                        ctx.beginPath();
+                        ctx.moveTo(topPt.x, topPt.y);
+                        ctx.lineTo(botPt.x, botPt.y);
+                        ctx.stroke();
+                    }
+                }
+
+                // 4. Draw Separators (Blue)
+                ctx.strokeStyle = 'rgba(0, 0, 255, 0.8)';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(points[4].x, points[4].y);
+                ctx.lineTo(points[5].x, points[5].y);
+                ctx.moveTo(points[6].x, points[6].y);
+                ctx.lineTo(points[7].x, points[7].y);
+                ctx.stroke();
+
+                // 5. Draw Outer Box (Green)
+                ctx.strokeStyle = 'rgba(0, 255, 0, 0.8)';
+                ctx.beginPath();
+                ctx.moveTo(points[0].x, points[0].y);
+                ctx.lineTo(points[1].x, points[1].y);
+                ctx.lineTo(points[2].x, points[2].y);
+                ctx.lineTo(points[3].x, points[3].y);
+                ctx.closePath();
+                ctx.stroke();
+
+                // 6. Draw Draggable Dots
+                points.forEach((p, index) => {
+                    ctx.fillStyle = 'yellow';
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, 8, 0, 2 * Math.PI);
+                    ctx.fill();
+                    
+                    ctx.fillStyle = 'black';
+                    ctx.font = 'bold 14px Arial';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText(index + 1, p.x, p.y);
+                });
+            }
+
+            function getMousePos(e) {
+                const rect = canvas.getBoundingClientRect();
+                const scaleX = canvas.width / rect.width;
+                const scaleY = canvas.height / rect.height;
+                return {
+                    x: (e.clientX - rect.left) * scaleX,
+                    y: (e.clientY - rect.top) * scaleY
+                };
+            }
+
+            canvas.addEventListener('mousedown', function(e) {
+                const pos = getMousePos(e);
+                for (let i = 0; i < points.length; i++) {
+                    const dx = points[i].x - pos.x;
+                    const dy = points[i].y - pos.y;
+                    if (Math.sqrt(dx*dx + dy*dy) < 25) { 
+                        draggingIdx = i;
+                        break;
+                    }
+                }
+            });
+
+            canvas.addEventListener('mousemove', function(e) {
+                if (draggingIdx === -1) return;
+                const pos = getMousePos(e);
+                points[draggingIdx] = pos;
+                drawCanvas();
+            });
+
+            canvas.addEventListener('mouseup', function() { draggingIdx = -1; });
+            canvas.addEventListener('mouseleave', function() { draggingIdx = -1; });
+
+            function generateCode() {
+                const p = points;
+                const code = `
+TRAY_TL = (${Math.round(p[0].x)}, ${Math.round(p[0].y)})
+TRAY_TR = (${Math.round(p[1].x)}, ${Math.round(p[1].y)})
+TRAY_BR = (${Math.round(p[2].x)}, ${Math.round(p[2].y)})
+TRAY_BL = (${Math.round(p[3].x)}, ${Math.round(p[3].y)})
+
+SEP1_TOP    = (${Math.round(p[4].x)}, ${Math.round(p[4].y)})
+SEP1_BOTTOM = (${Math.round(p[5].x)}, ${Math.round(p[5].y)})
+
+SEP2_TOP    = (${Math.round(p[6].x)}, ${Math.round(p[6].y)})
+SEP2_BOTTOM = (${Math.round(p[7].x)}, ${Math.round(p[7].y)})
+                `;
+                document.getElementById('output').innerText = code;
+                document.getElementById('instruction').innerText = "✅ Done! Copy the code below.";
+            }
+        </script>
+    </body>
+    </html>
+    '''
 
 if __name__ == '__main__':
     print("\n" + "="*50)
