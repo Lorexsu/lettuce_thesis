@@ -142,7 +142,7 @@
             <th>Confidence</th>
             <th>Health Status</th>
             <th>Health Conf.</th>
-            <th>Bounding Box</th>
+            <th>Diameter (cm)</th>
           </tr>
         </thead>
         <tbody id="detections-tbody">
@@ -389,7 +389,7 @@
                 <td>${(item.confidence * 100).toFixed(1)}%</td>
                 <td>${item.health_status}</td>
                 <td>${(item.health_confidence * 100).toFixed(1)}%</td>
-                <td>${item.bbox}</td>
+                <td>${item.diameter_cm != null ? item.diameter_cm.toFixed(1) : '—'}</td>
               </tr>
             `;
           case 'relays':
