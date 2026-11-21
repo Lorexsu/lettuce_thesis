@@ -39,7 +39,8 @@ def init_database():
             bbox_y2 REAL,
             health_status TEXT,
             health_confidence REAL,
-            image_path TEXT
+            image_path TEXT,
+            diameter_cm REAL
         )
     ''')
     
@@ -177,7 +178,7 @@ def get_latest_sensor_reading():
 # DETECTION FUNCTIONS
 # ========================================
 
-def save_detection(label, confidence, bbox, health_status='Unknown', health_confidence=0.0, image_path=''):
+def save_detection(label, confidence, bbox, health_status='Unknown', health_confidence=0.0, image_path='',diameter_cm=None):
     """Save detection to database"""
     try:
         conn = sqlite3.connect(DB_PATH)
@@ -188,10 +189,10 @@ def save_detection(label, confidence, bbox, health_status='Unknown', health_conf
         cursor.execute('''
             INSERT INTO detections 
             (timestamp, label, confidence, bbox_x1, bbox_y1, bbox_x2, bbox_y2, 
-             health_status, health_confidence, image_path)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             health_status, health_confidence, image_path, diameter_cm)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (current_time, label, confidence, bbox['x1'], bbox['y1'], bbox['x2'], bbox['y2'],
-              health_status, health_confidence, image_path))
+              health_status, health_confidence, image_path, diameter_cm))
         
         conn.commit()
         conn.close()
@@ -481,7 +482,7 @@ def get_detections_page(page=1, per_page=100, date=None, search=''):
         per_page = min(max(1, int(per_page)), 500)
         where, params = [], []
         if date is None:                      # not provided -> today
-            where.append("DATE(timestamp) = DATE('now')")
+            where.append("DATE(timestamp) = DATE('now','localtime')")
         elif date:                            # a specific day (YYYY-MM-DD)
             where.append("DATE(timestamp) = ?")
             params.append(date)
@@ -498,7 +499,7 @@ def get_detections_page(page=1, per_page=100, date=None, search=''):
         total = cursor.fetchone()[0]
         cursor.execute(f'''
             SELECT id, timestamp, label, confidence,
-                   bbox_x1, bbox_y1, bbox_x2, bbox_y2,
+                   diameter_cm,
                    health_status, health_confidence
             FROM detections {clause}
             ORDER BY timestamp DESC, id DESC
@@ -511,9 +512,9 @@ def get_detections_page(page=1, per_page=100, date=None, search=''):
             'total': total, 'page': page, 'per_page': per_page,
             'rows': [{
                 'id': r[0], 'timestamp': r[1], 'label': r[2], 'confidence': r[3],
-                'bbox': f'({r[4]},{r[5]},{r[6]},{r[7]})',
-                'health_status': r[8] or 'Unknown',
-                'health_confidence': r[9] or 0.0
+                'diameter_cm': r[4],
+                'health_status': r[5] or 'Unknown',
+                'health_confidence': r[6] or 0.0
             } for r in rows]
         }
     except Exception as e:
@@ -582,6 +583,19 @@ def export_to_csv(table_name, output_file):
         print(f"❌ Error exporting to CSV: {e}")
         return False
 
+def ensure_diameter_column():
+    """Add detections.diameter_cm to databases created before this column existed"""
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cols = [c[1] for c in conn.execute("PRAGMA table_info(detections)")]
+        if cols and 'diameter_cm' not in cols:
+            conn.execute("ALTER TABLE detections ADD COLUMN diameter_cm REAL")
+            conn.commit()
+            print("✅ Added detections.diameter_cm column")
+        conn.close()
+    except Exception as e:
+        print(f"❌ Migration error: {e}")
+
 # Initialize database when module is imported
 if __name__ == "__main__":
     init_database()
@@ -589,3 +603,4 @@ else:
     # Auto-initialize if database doesn't exist
     if not os.path.exists(DB_PATH):
         init_database()
+ensure_diameter_column()
