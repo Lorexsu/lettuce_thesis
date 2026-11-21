@@ -1826,6 +1826,13 @@ window.addEventListener('load', () => {
       document.getElementById('noStream').style.display = 'flex';
     }
 
+    const HEALTH_LABELS = {
+      'FN': 'Full Nutrition',
+      '-N': 'Nitrogen Deficiency',
+      '-P': 'Phosphorus Deficiency',
+      '-K': 'Potassium Deficiency'
+    };
+    
     function updateDetectionListLive(detections) {
       const listEl = document.getElementById('detectionListLive');
       
@@ -1863,7 +1870,7 @@ window.addEventListener('load', () => {
             ` : ''}
             ${det.health_status ? `
               <div style="font-size: 0.9rem; color: #555; margin-top: 0.5rem;">
-                Health: <strong>${det.health_status}</strong>
+                Health: <strong>${HEALTH_LABELS[det.health_status] || det.health_status}</strong>
                 <span style="color: #6c757d;">(${(det.health_confidence * 100).toFixed(1)}%)</span>
               </div>
             ` : ''}
