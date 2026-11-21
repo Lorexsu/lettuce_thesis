@@ -191,7 +191,13 @@
   // State management
   let currentTab = 'sensors';
   let currentPage = 1;
-  let itemsPerPage = 100; 
+  let itemsPerPage = 100;
+  const HEALTH_LABELS = {
+    'FN': 'Full Nutrition',
+    '-N': 'Nitrogen Deficiency',
+    '-P': 'Phosphorus Deficiency',
+    '-K': 'Potassium Deficiency'
+  };
   let detectionsTotal = 0;
   let filterTimer = null;
   
@@ -387,7 +393,7 @@
                 <td>${item.timestamp}</td>
                 <td><span class="${item.label.includes('Not') ? 'badge-not-ready' : 'badge-ready'}">${item.label}</span></td>
                 <td>${(item.confidence * 100).toFixed(1)}%</td>
-                <td>${item.health_status}</td>
+                <td>${HEALTH_LABELS[item.health_status] || item.health_status}</td>
                 <td>${(item.health_confidence * 100).toFixed(1)}%</td>
                 <td>${item.diameter_cm != null ? item.diameter_cm.toFixed(1) : '—'}</td>
               </tr>
