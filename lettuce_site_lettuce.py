@@ -459,7 +459,8 @@ def process_frame_yolo(frame, save_to_db=False):
                     bbox=det['bbox'],
                     health_status=det.get('health_status', 'Unknown'),
                     health_confidence=det.get('health_confidence', 0.0),
-                    image_path=f'live_stream_{datetime.now().strftime("%Y%m%d_%H%M%S")}.jpg'
+                    image_path=f'live_stream_{datetime.now().strftime("%Y%m%d_%H%M%S")}.jpg',
+                    diameter_cm=det.get('diameter_cm')
                 )
             except Exception as e:
                 print(f"Error saving detection to DB: {e}")
